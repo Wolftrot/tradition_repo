@@ -1,0 +1,17 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\src",
+    "\\src\\main",
+    "\\src\\main\\webapp",
+    "\\src\\main\\webapp\\WEB-INF",
+    "\\src\\test",
+    "\\src\\test\\java",
+    "\\src\\test\\java\\net",
+    "\\src\\test\\java\\net\\stemmaweb",
+    "\\src\\test\\java\\net\\stemmaweb\\stemmaserver",
+    "\\target"
+  ],
+  "SelectedNode": "\\src\\test\\java\\net\\stemmaweb\\stemmaserver\\JerseyTestServerFactory.java",
+  "PreviewInSolutionExplorer": false
+}

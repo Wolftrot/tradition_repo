@@ -31,13 +31,13 @@
                         <version>${neo4j-version}</version>
                     </dependency>
                 </dependencies>
-                <executions>
+                <!-- <executions>
                     <execution>
                         <goals>
                             <goal>restdoc</goal>
                         </goals>
                     </execution>
-                </executions>
+                </executions> -->
                 <configuration>
                     <licence>MIREDOT_LICENSE</licence>
                     <restModel>
@@ -52,10 +52,10 @@
                             <intro>build/docintro.html</intro>
                         </html>
                     </output>
-                    <!-- insert other configuration here (optional) -->
+                    
                 </configuration>
             </plugin>
-			<plugin>
+			<!-- <plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
 				<version>1.6.0</version>
@@ -73,9 +73,8 @@
 						<argument>-R</argument>
 						<argument>target/miredot</argument>
 						<argument>src/main/webapp/WEB-INF/docs</argument>
-					</arguments>
 				</configuration>
-			</plugin>
+			</plugin> -->
 		</plugins>
 	</build>
 	<dependencies>
@@ -215,11 +214,19 @@
 			<version>1.5.0</version>
 		</dependency>
 		<!-- Test dependencies -->
-		<!-- <dependency> <groupId>${jersey-group}</groupId> <artifactId>jersey-client</artifactId> 
-			<version>${jersey-version}</version> <scope>test</scope> </dependency> <dependency> 
-			<groupId>${jersey-group}.jersey-test-framework</groupId> <artifactId>jersey-test-framework-grizzly2</artifactId> 
-			<version>${jersey-version}</version> <scope>test</scope> </dependency> -->
-		<dependency>
+		<!-- <dependency> 
+			<groupId>${jersey-group}</groupId> 
+			<artifactId>jersey-client</artifactId> 
+			<version>${jersey-version}</version>
+			<scope>test</scope> 
+		</dependency> 
+		<dependency> 
+			<groupId>${jersey-group}.jersey-test-framework</groupId> 
+			<artifactId>jersey-test-framework-grizzly2</artifactId> 
+			<version>${jersey-version}</version> 
+			<scope>test</scope> 
+		</dependency>-->
+		<dependency> 
 			<groupId>org.glassfish.jersey.test-framework</groupId>
 			<artifactId>jersey-test-framework-core</artifactId>
 			<version>${jersey-version}</version>
@@ -326,6 +333,4 @@
 			<url>http://nexus.qmino.com/content/repositories/miredot</url>
 		</pluginRepository>
 	</pluginRepositories>
-
-
 </project>
