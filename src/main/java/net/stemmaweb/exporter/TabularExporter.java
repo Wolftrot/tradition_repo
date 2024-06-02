@@ -899,19 +899,24 @@ public class TabularExporter {
                 for (RelationModel rel : relationshipsList) {
                     RelationStruct relStruct = new RelationStruct();
                     relStruct.relationModel = rel;
-                    Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
-                    Node hTarget = db.getNodeById(Long.parseLong(rel.getHTarget()));
-                    relStruct.hSource = new ComplexReadingModel(hSource);
-                    relStruct.hTarget = new ComplexReadingModel(hTarget);
 
-                    relStruct.hSourceReadings = relStruct.hSource.getComponents().stream()
-                            .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
-                            .map(x -> x.getReading())
-                            .collect(Collectors.toList());
-                    relStruct.hTargetReadings = relStruct.hTarget.getComponents().stream()
-                            .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
-                            .map(x -> x.getReading())
-                            .collect(Collectors.toList());
+                    //IF THEREIS HSOURCE AND HTARGET
+                    if (rel.getHSource() != null && !rel.getHSource().isEmpty() && rel.getHTarget() != null
+                            && !rel.getHTarget().isEmpty()) {
+                        Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
+                        Node hTarget = db.getNodeById(Long.parseLong(rel.getHTarget()));
+                        relStruct.hSource = new ComplexReadingModel(hSource);
+                        relStruct.hTarget = new ComplexReadingModel(hTarget);
+
+                        relStruct.hSourceReadings = relStruct.hSource.getComponents().stream()
+                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                .map(x -> x.getReading())
+                                .collect(Collectors.toList());
+                        relStruct.hTargetReadings = relStruct.hTarget.getComponents().stream()
+                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                .map(x -> x.getReading())
+                                .collect(Collectors.toList());
+                    }
 
                     Node source = db.getNodeById(Long.parseLong(rel.getSource()));
                     Node target = db.getNodeById(Long.parseLong(rel.getTarget()));
@@ -1151,7 +1156,9 @@ public class TabularExporter {
                     for (RelationStruct relStruct : relStructList) {
 
                         if (relStruct.relationModel.getIs_hyperrelation()
-                                && relStruct.relationModel.getTarget().equals(readingId)) {
+                                && relStruct.relationModel.getTarget().equals(readingId)
+                                || relStruct.relationModel.getIs_hyperrelation()
+                                && relStruct.relationModel.getSource().equals(readingId)) {
                             // writer.writeEmptyElement("hyper_relationship");
                             defined_by_hyperrelation = true;
 
@@ -1261,7 +1268,9 @@ public class TabularExporter {
                         // as a standard apparatus with the cause attribute set on the target reading
 
                         if (!relStruct.relationModel.getIs_hyperrelation()
-                                && relStruct.relationModel.getTarget().equals(readingId)) {
+                                && relStruct.relationModel.getTarget().equals(readingId)
+                                || !relStruct.relationModel.getIs_hyperrelation()
+                                && relStruct.relationModel.getSource().equals(readingId)){
                             writer.writeStartElement("app"); // app
 
                             // writer.writeEmptyElement("normal_relationship");
