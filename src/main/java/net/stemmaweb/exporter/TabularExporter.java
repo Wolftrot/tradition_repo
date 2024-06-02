@@ -890,7 +890,6 @@ public class TabularExporter {
                     txSectionNode.success();
                 } catch (Exception e) {
                     e.printStackTrace();
-                    return null;
                 }
 
                 // FEED A LIST OF RELATION STRUCT STORING NODES FOR FUTURE USE
@@ -929,200 +928,206 @@ public class TabularExporter {
                     // writer.writeAttribute("hypernodeSource", rel.getHSource()); // hypernode id
                     // writer.writeAttribute("hypernodeTarget", rel.getHTarget()); // hypernode id
                     // writer.writeAttribute("type", rel.getType());
-                    // writer.writeAttribute("is_hyperrelation", Boolean.toString(rel.getIs_hyperrelation()));
+                    // writer.writeAttribute("is_hyperrelation",
+                    // Boolean.toString(rel.getIs_hyperrelation()));
                     // writer.writeEndElement(); // relation
                 }
 
                 // // write down all relationships
                 // writer.writeStartElement("Relationshiplist");
                 // for (RelationModel relationship : relationshipsList) {
-                //     writer.writeStartElement("relation");
-                //     writer.writeAttribute("id", relationship.getId());
-                //     writer.writeAttribute("source", relationship.getSource()); // reading id
-                //     writer.writeAttribute("target", relationship.getTarget()); // reading id
-                //     writer.writeAttribute("hypernodeSource", relationship.getHSource()); // hypernode id
-                //     writer.writeAttribute("hypernodeTarget", relationship.getHTarget()); // hypernode id
-                //     writer.writeAttribute("type", relationship.getType());
-                //     writer.writeEndElement(); // relation
+                // writer.writeStartElement("relation");
+                // writer.writeAttribute("id", relationship.getId());
+                // writer.writeAttribute("source", relationship.getSource()); // reading id
+                // writer.writeAttribute("target", relationship.getTarget()); // reading id
+                // writer.writeAttribute("hypernodeSource", relationship.getHSource()); //
+                // hypernode id
+                // writer.writeAttribute("hypernodeTarget", relationship.getHTarget()); //
+                // hypernode id
+                // writer.writeAttribute("type", relationship.getType());
+                // writer.writeEndElement(); // relation
 
-                //     // HYPERNODE APPARATUS
-                //     writer.writeStartElement("app");
-                //     writer.writeAttribute("is_hyperrelation", Boolean.toString(relationship.getIs_hyperrelation()));
-                //     writer.writeAttribute("type", relationship.getType());
+                // // HYPERNODE APPARATUS
+                // writer.writeStartElement("app");
+                // writer.writeAttribute("is_hyperrelation",
+                // Boolean.toString(relationship.getIs_hyperrelation()));
+                // writer.writeAttribute("type", relationship.getType());
 
-                //     if (relationship.getIs_hyperrelation()) {
-                //         // GET BOTH HYPERNODEs
-                //         Node hSource = db.getNodeById(Long.parseLong(relationship.getHSource()));
-                //         ComplexReadingModel hSourceCRM = new ComplexReadingModel(hSource);
-                //         List<ComplexReadingModel> hSourceReadings = hSourceCRM.getComponents();
+                // if (relationship.getIs_hyperrelation()) {
+                // // GET BOTH HYPERNODEs
+                // Node hSource = db.getNodeById(Long.parseLong(relationship.getHSource()));
+                // ComplexReadingModel hSourceCRM = new ComplexReadingModel(hSource);
+                // List<ComplexReadingModel> hSourceReadings = hSourceCRM.getComponents();
 
-                //         // Get all the witnesses of the readings composing the hypernode
-                //         // and filter the the common witnesses between the readings
-                //         List<String> hSourceCommonWitnesses = hSourceReadings
-                //                 .stream()
-                //                 .flatMap(x -> x.getReading().getWitnesses().stream())
-                //                 .filter(y -> hSourceReadings.stream()
-                //                         .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                //                 .distinct()
-                //                 .collect(Collectors.toList());
+                // // Get all the witnesses of the readings composing the hypernode
+                // // and filter the the common witnesses between the readings
+                // List<String> hSourceCommonWitnesses = hSourceReadings
+                // .stream()
+                // .flatMap(x -> x.getReading().getWitnesses().stream())
+                // .filter(y -> hSourceReadings.stream()
+                // .allMatch(z -> z.getReading().getWitnesses().contains(y)))
+                // .distinct()
+                // .collect(Collectors.toList());
 
-                //         ArrayList<String> hSourceSigList = new ArrayList<>();
-                //         for (String wit : hSourceCommonWitnesses)
-                //             hSourceSigList.add("#" + wit);
-                //         Collections.sort(hSourceSigList);
-                //         String hSourceWitnessList = String.join(" ", hSourceSigList);
+                // ArrayList<String> hSourceSigList = new ArrayList<>();
+                // for (String wit : hSourceCommonWitnesses)
+                // hSourceSigList.add("#" + wit);
+                // Collections.sort(hSourceSigList);
+                // String hSourceWitnessList = String.join(" ", hSourceSigList);
 
-                //         writer.writeStartElement("rdg");
+                // writer.writeStartElement("rdg");
 
-                //         if (hSourceCRM.getId() != null && !hSourceCRM.getId().isEmpty()) {
-                //             writer.writeAttribute("xml:id", hSourceCRM.getId());
-                //         }
+                // if (hSourceCRM.getId() != null && !hSourceCRM.getId().isEmpty()) {
+                // writer.writeAttribute("xml:id", hSourceCRM.getId());
+                // }
 
-                //         if (hSourceWitnessList != null && !hSourceWitnessList.isEmpty()) {
-                //             writer.writeAttribute("wit", hSourceWitnessList);
-                //         }
+                // if (hSourceWitnessList != null && !hSourceWitnessList.isEmpty()) {
+                // writer.writeAttribute("wit", hSourceWitnessList);
+                // }
 
-                //         List<ComplexReadingModel> hSourceSortedHypernodeReadings = hSourceReadings
-                //                 .stream()
-                //                 .sorted(
-                //                         java.util.Comparator.comparing(
-                //                                 x -> x.getReading().getRank()))
-                //                 .collect(Collectors.toList());
+                // List<ComplexReadingModel> hSourceSortedHypernodeReadings = hSourceReadings
+                // .stream()
+                // .sorted(
+                // java.util.Comparator.comparing(
+                // x -> x.getReading().getRank()))
+                // .collect(Collectors.toList());
 
-                //         for (ComplexReadingModel hsrm : hSourceSortedHypernodeReadings) {
+                // for (ComplexReadingModel hsrm : hSourceSortedHypernodeReadings) {
 
-                //             ReadingModel reading = hsrm.getReading();
-                //             writer.writeCharacters(reading.getText());
-                //             writer.writeCharacters(" | getID:" + reading.getId());
-                //             writer.writeCharacters(" | getRank:" + reading.getRank().toString());
-                //             writer.writeCharacters(" | getWitnesses:" +
-                //                     reading.getWitnesses().toString());
-                //         }
+                // ReadingModel reading = hsrm.getReading();
+                // writer.writeCharacters(reading.getText());
+                // writer.writeCharacters(" | getID:" + reading.getId());
+                // writer.writeCharacters(" | getRank:" + reading.getRank().toString());
+                // writer.writeCharacters(" | getWitnesses:" +
+                // reading.getWitnesses().toString());
+                // }
 
-                //         writer.writeEndElement(); // rdg
+                // writer.writeEndElement(); // rdg
 
-                //         Node hTarget = db.getNodeById(Long.parseLong(relationship.getHTarget()));
-                //         ComplexReadingModel hTargetCRM = new ComplexReadingModel(hTarget);
-                //         List<ComplexReadingModel> hTargetReadings = hTargetCRM.getComponents();
+                // Node hTarget = db.getNodeById(Long.parseLong(relationship.getHTarget()));
+                // ComplexReadingModel hTargetCRM = new ComplexReadingModel(hTarget);
+                // List<ComplexReadingModel> hTargetReadings = hTargetCRM.getComponents();
 
-                //         // Get all the witnesses of the readings composing the hypernode
-                //         // and filter the the common witnesses between the readings
-                //         List<String> hTargetCommonWitnesses = hTargetReadings
-                //                 .stream()
-                //                 .flatMap(x -> x.getReading().getWitnesses().stream())
-                //                 .filter(y -> hTargetReadings.stream()
-                //                         .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                //                 .distinct()
-                //                 .collect(Collectors.toList());
+                // // Get all the witnesses of the readings composing the hypernode
+                // // and filter the the common witnesses between the readings
+                // List<String> hTargetCommonWitnesses = hTargetReadings
+                // .stream()
+                // .flatMap(x -> x.getReading().getWitnesses().stream())
+                // .filter(y -> hTargetReadings.stream()
+                // .allMatch(z -> z.getReading().getWitnesses().contains(y)))
+                // .distinct()
+                // .collect(Collectors.toList());
 
-                //         // List<String> readingsWitnesses =
-                //         // hTargetReadings.get(0).getReading().getWitnesses();
-                //         ArrayList<String> hTargetSigList = new ArrayList<>();
-                //         for (String wit : hTargetCommonWitnesses)
-                //             hTargetSigList.add("#" + wit);
-                //         Collections.sort(hTargetSigList);
-                //         String hTargetWitnessList = String.join(" ", hTargetSigList);
+                // // List<String> readingsWitnesses =
+                // // hTargetReadings.get(0).getReading().getWitnesses();
+                // ArrayList<String> hTargetSigList = new ArrayList<>();
+                // for (String wit : hTargetCommonWitnesses)
+                // hTargetSigList.add("#" + wit);
+                // Collections.sort(hTargetSigList);
+                // String hTargetWitnessList = String.join(" ", hTargetSigList);
 
-                //         writer.writeStartElement("rdg");
-                //         if (hTargetCRM.getId() != null && !hTargetCRM.getId().isEmpty()) {
-                //             writer.writeAttribute("xml:id", hTargetCRM.getId());
-                //         }
+                // writer.writeStartElement("rdg");
+                // if (hTargetCRM.getId() != null && !hTargetCRM.getId().isEmpty()) {
+                // writer.writeAttribute("xml:id", hTargetCRM.getId());
+                // }
 
-                //         if (hTargetWitnessList != null && !hTargetWitnessList.isEmpty()) {
-                //             writer.writeAttribute("wit", hTargetWitnessList);
-                //         }
+                // if (hTargetWitnessList != null && !hTargetWitnessList.isEmpty()) {
+                // writer.writeAttribute("wit", hTargetWitnessList);
+                // }
 
-                //         if (relationship.getType() != null && !relationship.getType().isEmpty()) {
-                //             writer.writeAttribute("cause", relationship.getType());
-                //         }
-                //         // sort hypernodeReadings by rank
-                //         // hypernodeReadings.stream().forEachOrdered(x -> {
-                //         // x.getReading().getRank();
-                //         // });
+                // if (relationship.getType() != null && !relationship.getType().isEmpty()) {
+                // writer.writeAttribute("cause", relationship.getType());
+                // }
+                // // sort hypernodeReadings by rank
+                // // hypernodeReadings.stream().forEachOrdered(x -> {
+                // // x.getReading().getRank();
+                // // });
 
-                //         List<ComplexReadingModel> hTargetSortedHypernodeReadings = hTargetReadings
-                //                 .stream()
-                //                 .sorted(
-                //                         java.util.Comparator.comparing(x -> x.getReading().getRank()
+                // List<ComplexReadingModel> hTargetSortedHypernodeReadings = hTargetReadings
+                // .stream()
+                // .sorted(
+                // java.util.Comparator.comparing(x -> x.getReading().getRank()
 
-                //                         )).collect(Collectors.toList());
+                // )).collect(Collectors.toList());
 
-                //         // List<ComplexReadingModel> sortedHypernodeReadings =
-                //         // hypernodeReadings.stream()
-                //         // .sorted(Comparator.comparing(x -> x.getReading().getRank()))
-                //         // .collect(Collectors.toList());
+                // // List<ComplexReadingModel> sortedHypernodeReadings =
+                // // hypernodeReadings.stream()
+                // // .sorted(Comparator.comparing(x -> x.getReading().getRank()))
+                // // .collect(Collectors.toList());
 
-                //         for (ComplexReadingModel htrm : hTargetSortedHypernodeReadings) {
+                // for (ComplexReadingModel htrm : hTargetSortedHypernodeReadings) {
 
-                //             ReadingModel reading = htrm.getReading();
-                //             writer.writeCharacters("text:" + reading.getText());
-                //             writer.writeCharacters(" | getID:" + reading.getId());
-                //             writer.writeCharacters(" | getRank:" + reading.getRank().toString());
-                //             writer.writeCharacters(" | getWitnesses:" + reading.getWitnesses().toString());
-                //         }
+                // ReadingModel reading = htrm.getReading();
+                // writer.writeCharacters("text:" + reading.getText());
+                // writer.writeCharacters(" | getID:" + reading.getId());
+                // writer.writeCharacters(" | getRank:" + reading.getRank().toString());
+                // writer.writeCharacters(" | getWitnesses:" +
+                // reading.getWitnesses().toString());
+                // }
 
-                //         writer.writeEndElement(); // rdg
+                // writer.writeEndElement(); // rdg
 
-                //         // ANNOTATION FOR RELATION
-                //         if (relationship.getAnnotation() != null && !relationship.getAnnotation().isEmpty()) {
-                //             writer.writeStartElement("note");
-                //             writer.writeCharacters(relationship.getAnnotation());
-                //             writer.writeEndElement(); // note
-                //         }
+                // // ANNOTATION FOR RELATION
+                // if (relationship.getAnnotation() != null &&
+                // !relationship.getAnnotation().isEmpty()) {
+                // writer.writeStartElement("note");
+                // writer.writeCharacters(relationship.getAnnotation());
+                // writer.writeEndElement(); // note
+                // }
 
-                //         writer.writeEndElement(); // app
+                // writer.writeEndElement(); // app
 
-                //     }
+                // }
 
-                //     if (!relationship.getIs_hyperrelation()) {
-                //         // GET STANDARD RELATION SOURCE NODE
-                //         Node source = db.getNodeById(Long.parseLong(relationship.getSource()));
-                //         ReadingModel sourceRM = new ReadingModel(source);
+                // if (!relationship.getIs_hyperrelation()) {
+                // // GET STANDARD RELATION SOURCE NODE
+                // Node source = db.getNodeById(Long.parseLong(relationship.getSource()));
+                // ReadingModel sourceRM = new ReadingModel(source);
 
-                //         // OPEN CRITICAL APPARATUS
-                //         writer.writeStartElement("rdg"); // OPEN LEMMA/RDG
-                //         writer.writeAttribute("xml:id", sourceRM.getId());
+                // // OPEN CRITICAL APPARATUS
+                // writer.writeStartElement("rdg"); // OPEN LEMMA/RDG
+                // writer.writeAttribute("xml:id", sourceRM.getId());
 
-                //         // getWitnessList of rdg
-                //         List<String> lem_wits = sourceRM.getWitnesses();
-                //         ArrayList<String> sigList = new ArrayList<>();
-                //         for (String l : lem_wits)
-                //             sigList.add("#" + l);
-                //         Collections.sort(sigList);
-                //         String witnessList = String.join(" ", sigList);
-                //         writer.writeAttribute("wit", witnessList);
+                // // getWitnessList of rdg
+                // List<String> lem_wits = sourceRM.getWitnesses();
+                // ArrayList<String> sigList = new ArrayList<>();
+                // for (String l : lem_wits)
+                // sigList.add("#" + l);
+                // Collections.sort(sigList);
+                // String witnessList = String.join(" ", sigList);
+                // writer.writeAttribute("wit", witnessList);
 
-                //         // getRank
-                //         writer.writeAttribute("rank", Long.toString(sourceRM.getRank()));
-                //         writer.writeCharacters(sourceRM.getText()); // write inner text
+                // // getRank
+                // writer.writeAttribute("rank", Long.toString(sourceRM.getRank()));
+                // writer.writeCharacters(sourceRM.getText()); // write inner text
 
-                //         writer.writeEndElement(); // rdg
+                // writer.writeEndElement(); // rdg
 
-                //         // GET STANDARD RELATION SOURCE NODE
-                //         Node target = db.getNodeById(Long.parseLong(relationship.getTarget()));
-                //         ReadingModel targetRM = new ReadingModel(target);
+                // // GET STANDARD RELATION SOURCE NODE
+                // Node target = db.getNodeById(Long.parseLong(relationship.getTarget()));
+                // ReadingModel targetRM = new ReadingModel(target);
 
-                //         // OPEN CRITICAL APPARATUS
-                //         writer.writeStartElement("rdg"); // OPEN LEMMA/RDG
-                //         writer.writeAttribute("xml:id", targetRM.getId());
+                // // OPEN CRITICAL APPARATUS
+                // writer.writeStartElement("rdg"); // OPEN LEMMA/RDG
+                // writer.writeAttribute("xml:id", targetRM.getId());
 
-                //         // getWitnessList of rdg
-                //         List<String> target_wits = targetRM.getWitnesses();
-                //         sigList = new ArrayList<>();
-                //         for (String l : target_wits)
-                //             sigList.add("#" + l);
-                //         Collections.sort(sigList);
-                //         witnessList = String.join(" ", sigList);
-                //         writer.writeAttribute("wit", witnessList);
+                // // getWitnessList of rdg
+                // List<String> target_wits = targetRM.getWitnesses();
+                // sigList = new ArrayList<>();
+                // for (String l : target_wits)
+                // sigList.add("#" + l);
+                // Collections.sort(sigList);
+                // witnessList = String.join(" ", sigList);
+                // writer.writeAttribute("wit", witnessList);
 
-                //         // getRank
-                //         writer.writeAttribute("rank", Long.toString(targetRM.getRank()));
-                //         writer.writeCharacters(targetRM.getText()); // write inner text
+                // // getRank
+                // writer.writeAttribute("rank", Long.toString(targetRM.getRank()));
+                // writer.writeCharacters(targetRM.getText()); // write inner text
 
-                //         writer.writeEndElement(); // rdg
-                //         writer.writeEndElement(); // app
+                // writer.writeEndElement(); // rdg
+                // writer.writeEndElement(); // app
 
-                //     }
+                // }
                 // }
 
                 // writer.writeEndElement(); // relationshiplist
@@ -1145,24 +1150,22 @@ public class TabularExporter {
                     Boolean defined_by_hyperrelation = false;
                     for (RelationStruct relStruct : relStructList) {
 
-
-
                         if (relStruct.relationModel.getIs_hyperrelation()
-                                && relStruct.relationModel.getTarget().equals(readingId)) 
-                            {
+                                && relStruct.relationModel.getTarget().equals(readingId)) {
                             // writer.writeEmptyElement("hyper_relationship");
                             defined_by_hyperrelation = true;
 
                             // writer.writeStartElement("debug_relationship");
 
-
                             // /// DEBUG PURPOSES
                             // writer.writeCharacters(Boolean.toString(relStruct.relationModel.getIs_hyperrelation()));
                             // writer.writeCharacters(readingId);
-                            // writer.writeCharacters(" | source  : " + relStruct.relationModel.getSource());
-                            // writer.writeCharacters(" | hsource : " + relStruct.relationModel.getHSource());
+                            // writer.writeCharacters(" | source : " + relStruct.relationModel.getSource());
+                            // writer.writeCharacters(" | hsource : " +
+                            // relStruct.relationModel.getHSource());
                             // writer.writeCharacters(" | target : " + relStruct.relationModel.getTarget());
-                            // writer.writeCharacters(" | htarget : " + relStruct.relationModel.getHTarget());
+                            // writer.writeCharacters(" | htarget : " +
+                            // relStruct.relationModel.getHTarget());
                             // writer.writeCharacters(" | type : " + relStruct.relationModel.getType());
                             // writer.writeEndElement(); // app
 
@@ -1186,7 +1189,7 @@ public class TabularExporter {
 
                             List<String> sigList = new ArrayList<>();
                             for (ReadingModel rm : relStruct.hTargetReadings) {
-                                // for each rm get the witnesses and add them to the attribute wit 
+                                // for each rm get the witnesses and add them to the attribute wit
                                 // avoiding duplicates
                                 List<String> wits = rm.getWitnesses();
                                 for (String l : wits)
@@ -1196,9 +1199,9 @@ public class TabularExporter {
                             Collections.sort(sigList);
                             String witnessList = String.join(" ", sigList);
                             writer.writeAttribute("wit", witnessList);
-                            
+
                             for (ReadingModel rm : relStruct.hSourceReadings) {
-                                //print the rdg of each reading model
+                                // print the rdg of each reading model
                                 writer.writeStartElement("rdg");
                                 writer.writeAttribute("xml:id", rm.getId());
                                 List<String> wits = rm.getWitnesses();
@@ -1217,7 +1220,6 @@ public class TabularExporter {
                             writer.writeStartElement("rdg");
                             writer.writeAttribute("xml:id", relStruct.hTarget.getId());
 
-                            
                             sigList = new ArrayList<>();
                             for (ReadingModel rm : relStruct.hTargetReadings) {
                                 List<String> wits = rm.getWitnesses();
@@ -1230,21 +1232,20 @@ public class TabularExporter {
                             writer.writeAttribute("wit", witnessList);
                             writer.writeAttribute("rank", Long.toString(relStruct.targetNode.getRank()));
 
-
                             for (ReadingModel rm : relStruct.hTargetReadings) {
-                                 //print the rdg of each reading model
-                                 writer.writeStartElement("rdg");
-                                 writer.writeAttribute("xml:id", rm.getId());
-                                 List<String> wits = rm.getWitnesses();
-                                 sigList = new ArrayList<>();
-                                 for (String l : wits)
-                                     sigList.add("#" + l);
-                                 Collections.sort(sigList);
-                                 witnessList = String.join(" ", sigList);
-                                 writer.writeAttribute("wit", witnessList);
-                                 writer.writeAttribute("rank", Long.toString(rm.getRank()));
-                                 writer.writeCharacters(rm.getText());
-                                 writer.writeEndElement(); // rdg
+                                // print the rdg of each reading model
+                                writer.writeStartElement("rdg");
+                                writer.writeAttribute("xml:id", rm.getId());
+                                List<String> wits = rm.getWitnesses();
+                                sigList = new ArrayList<>();
+                                for (String l : wits)
+                                    sigList.add("#" + l);
+                                Collections.sort(sigList);
+                                witnessList = String.join(" ", sigList);
+                                writer.writeAttribute("wit", witnessList);
+                                writer.writeAttribute("rank", Long.toString(rm.getRank()));
+                                writer.writeCharacters(rm.getText());
+                                writer.writeEndElement(); // rdg
                             }
                             writer.writeEndElement(); // hypernode target readings
 
@@ -1262,7 +1263,7 @@ public class TabularExporter {
                         if (!relStruct.relationModel.getIs_hyperrelation()
                                 && relStruct.relationModel.getTarget().equals(readingId)) {
                             writer.writeStartElement("app"); // app
-                            
+
                             // writer.writeEmptyElement("normal_relationship");
                             defined_by_manual_relation = true;
 
@@ -1275,20 +1276,21 @@ public class TabularExporter {
                             writer.writeCharacters(relStruct.relationModel.getAnnotation());
                             writer.writeEndElement(); // annotation
 
-                            
                             // writer.writeStartElement("debug_relationship");
 
                             // /// DEBUG PURPOSES
                             // writer.writeCharacters(Boolean.toString(relStruct.relationModel.getIs_hyperrelation()));
                             // writer.writeCharacters(readingId);
-                            // writer.writeCharacters(" | source  : " + relStruct.relationModel.getSource());
-                            // writer.writeCharacters(" | hsource : " + relStruct.relationModel.getHSource());
+                            // writer.writeCharacters(" | source : " + relStruct.relationModel.getSource());
+                            // writer.writeCharacters(" | hsource : " +
+                            // relStruct.relationModel.getHSource());
                             // writer.writeCharacters(" | target : " + relStruct.relationModel.getTarget());
-                            // writer.writeCharacters(" | htarget : " + relStruct.relationModel.getHTarget());
+                            // writer.writeCharacters(" | htarget : " +
+                            // relStruct.relationModel.getHTarget());
                             // writer.writeCharacters(" | type : " + relStruct.relationModel.getType());
                             // writer.writeEndElement(); // app
 
-                            writer.writeStartElement("rdg");
+                            writer.writeStartElement("lem");
                             writer.writeAttribute("xml:id", relStruct.sourceNode.getId());
                             List<String> wits = relStruct.sourceNode.getWitnesses();
                             ArrayList<String> sigList = new ArrayList<>();
@@ -1320,16 +1322,15 @@ public class TabularExporter {
 
                     }
 
-
-                    // If the reading has variants, 
+                    // If the reading has variants,
                     // ans is not a standard manual relationship
                     // build up the critical apparatus.
-                    
+
                     if (!variantLocationFound.isEmpty() && !defined_by_manual_relation) {
                         try {
                             // OPEN CRITICAL APPARATUS
                             writer.writeStartElement("app");
-                            writer.writeStartElement("rdg"); // OPEN LEMMA
+                            writer.writeStartElement("lem"); // OPEN LEMMA
                             writer.writeAttribute("xml:id", readingModel.getId());
 
                             // getWitnessList of lemma
@@ -1385,32 +1386,28 @@ public class TabularExporter {
                             }
                             writer.writeEndElement(); // app
                             writer.writeCharacters(" ");
-                            
+
                         } catch (XMLStreamException e) {
-
-                            writer.writeEmptyElement(e.getMessage());
-
-                            // e.printStackTrace();
+                            e.printStackTrace();
                         }
-
 
                     }
                     // If the reading has no variants, just write it out
                     else {
                         try {
-                            if(!defined_by_hyperrelation && !defined_by_manual_relation) {
-                                writer.writeCharacters(readingModel.getText() + " ");
+                            if (!defined_by_hyperrelation && !defined_by_manual_relation) {
+
+                                if (!readingModel.getText().equals("#START#") && !readingModel.getText().equals("#END#")) {
+
+                                    writer.writeCharacters(readingModel.getText() + " ");
+
+                                }
                             }
-                            
-                            
 
                         } catch (XMLStreamException e) {
-                            writer.writeEmptyElement(e.getMessage());
-
-                            // e.printStackTrace();
+                            e.printStackTrace();
                         }
                     }
-
 
                 }
 
@@ -1426,18 +1423,16 @@ public class TabularExporter {
             writer.flush();
 
             return Response.ok(
-                new String(result.toString().getBytes(), StandardCharsets.UTF_16)
-                
-                , MediaType.APPLICATION_XML).build();
+                    new String(result.toString().getBytes(), StandardCharsets.UTF_8)
+
+                    , MediaType.APPLICATION_XML).build();
             // MediaType.APPLICATION_JSON_TYPE).build()
         } catch (Exception e) {
             e.printStackTrace();
             return Response.serverError().entity(e.getMessage()).build();
         }
 
-        
     }
-
 
     private static class TabularExporterException extends Exception {
         TabularExporterException(String message) {
@@ -1457,9 +1452,6 @@ public class TabularExporter {
         // STANDARD NODES (used if is_hyperrelation is false)
         public ReadingModel sourceNode;
         public ReadingModel targetNode;
-
-        public RelationStruct() {
-        }
 
     }
 
