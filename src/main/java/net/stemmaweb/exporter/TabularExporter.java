@@ -111,7 +111,51 @@ public class TabularExporter {
                 return Response.status(Response.Status.NOT_FOUND).build();
             }
 
-            return getCriticalApparatus2(tradId, traditionSections, significant, excludeType1,
+            return getCriticalApparatusWithRelationships(tradId, traditionSections, significant, excludeType1,
+                    excludeNonsense, combine, suppressMatching, baseWitness, conflate, excWitnesses, excludeLayers);
+        } catch (TabularExporterException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity(e.getMessage()).build();
+        }
+
+    }
+
+    public Response exportAsTEICat3(String tradId, List<String> sectionList, String significant, String excludeType1,
+            String excludeNonsense, String combine, String suppressMatching, String baseWitness, List<String> conflate,
+            List<String> excWitnesses, boolean excludeLayers) {
+
+        ArrayList<Node> traditionSections;
+        try {
+            traditionSections = getSections(tradId, sectionList);
+            if (traditionSections == null) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+
+            return getCriticalApparatusWithHyperrelation(tradId, traditionSections, significant, excludeType1,
+                    excludeNonsense, combine, suppressMatching, baseWitness, conflate, excWitnesses, excludeLayers);
+        } catch (TabularExporterException e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity(e.getMessage()).build();
+        }
+
+    }
+
+    public Response exportAsTEICat4(String tradId, List<String> sectionList, String significant, String excludeType1,
+            String excludeNonsense, String combine, String suppressMatching, String baseWitness, List<String> conflate,
+            List<String> excWitnesses, boolean excludeLayers) {
+
+        ArrayList<Node> traditionSections;
+        try {
+            traditionSections = getSections(tradId, sectionList);
+            if (traditionSections == null) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+
+            return getCriticalApparatusWithHyperrelationsRecursive(tradId, traditionSections, significant, excludeType1,
                     excludeNonsense, combine, suppressMatching, baseWitness, conflate, excWitnesses, excludeLayers);
         } catch (TabularExporterException e) {
             return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
@@ -377,14 +421,10 @@ public class TabularExporter {
             writer.writeStartDocument();
 
             // ROOT ELEMENT
-            // writer.writeEmptyElement("?xml");
-            // writer.writeAttribute("version", "1.0");
-            // writer.writeAttribute("encoding", "UTF-8");
             writer.writeStartElement("TEI");
             writer.setDefaultNamespace("http://www.tei-c.org/ns/1.0");
             writer.writeDefaultNamespace("http://www.tei-c.org/ns/1.0");
             writer.writeAttribute("xml:lang", "en");
-            writer.writeAttribute("demo-purposes", "dev-tei-parallel-segmentation-1"); // TO REMOVE
 
             // TEI XML HEADER
             writer.writeStartElement("teiHeader");
@@ -463,296 +503,41 @@ public class TabularExporter {
                 if (startNode == null)
                     throw new Exception("Section " + sectId + " has no start node");
 
-                // NO RELATIONSHIP OUTPUT -> I DROPPED THIS POSSIBILITY
-                // GET RELATIONSHIPS WITH NODES
-                ArrayList<RelationModel> relList = new ArrayList<>();
-                try (Transaction txSectionNode = db.beginTx()) {
-                    db.traversalDescription().depthFirst()
-                            .relationships(ERelations.SEQUENCE, Direction.OUTGOING)
-                            .uniqueness(Uniqueness.NODE_GLOBAL)
-                            .traverse(startNode).nodes().forEach(
-                                    n -> n.getRelationships(ERelations.RELATED, Direction.OUTGOING).forEach(
-                                            r -> relList.add(new RelationModel(r, true))));
-
-                    txSectionNode.success();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    return null;
-                }
-
-                // write down all realtionships
-                writer.writeStartElement("Relationshiplist");
-                for (RelationModel rel : relList) {
-                    writer.writeStartElement("relation");
-                    writer.writeAttribute("id", rel.getId());
-                    writer.writeAttribute("source", rel.getSource()); // reading id
-                    writer.writeAttribute("target", rel.getTarget()); // reading id
-                    writer.writeAttribute("hypernodeSource", rel.getHSource()); // hypernode id
-                    writer.writeAttribute("hypernodeTarget", rel.getHTarget()); // hypernode id
-                    writer.writeAttribute("type", rel.getType());
-                    writer.writeEndElement(); // relation
-
-                    // HYPERNODE APPARATUS
-                    writer.writeStartElement("app");
-                    writer.writeAttribute("is_hyperrelation", Boolean.toString(rel.getIs_hyperrelation()));
-                    writer.writeAttribute("type", rel.getType());
-
-                    // GET BOTH HYPERNODEs
-                    Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
-                    ComplexReadingModel hSourceCRM = new ComplexReadingModel(hSource);
-                    List<ComplexReadingModel> hSourceReadings = hSourceCRM.getComponents();
-
-                    // Get all the witnesses of the readings composing the hypernode
-                    // and filter the the common witnesses between the readings
-                    List<String> hSourceCommonWitnesses = hSourceReadings
-                            .stream()
-                            .flatMap(x -> x.getReading().getWitnesses().stream())
-                            .filter(y -> hSourceReadings.stream()
-                                    .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                            .distinct()
-                            .collect(Collectors.toList());
-
-                    ArrayList<String> hSourceSigList = new ArrayList<>();
-                    for (String wit : hSourceCommonWitnesses)
-                        hSourceSigList.add("#" + wit);
-                    Collections.sort(hSourceSigList);
-                    String hSourceWitnessList = String.join(" ", hSourceSigList);
-
-                    writer.writeStartElement("rdg");
-
-                    if (hSourceCRM.getId() != null && !hSourceCRM.getId().isEmpty()) {
-                        writer.writeAttribute("xml:id", hSourceCRM.getId());
-                    }
-
-                    if (hSourceWitnessList != null && !hSourceWitnessList.isEmpty()) {
-                        writer.writeAttribute("wit", hSourceWitnessList);
-                    }
-
-                    List<ComplexReadingModel> hSourceSortedHypernodeReadings = hSourceReadings
-                            .stream()
-                            .sorted(
-                                    java.util.Comparator.comparing(
-                                            x -> x.getReading().getRank()))
-                            .collect(Collectors.toList());
-
-                    for (ComplexReadingModel hsrm : hSourceSortedHypernodeReadings) {
-                        writer.writeCharacters(hsrm.getReading().getText());
-                    }
-
-                    writer.writeEndElement(); // rdg
-
-                    Node hTarget = db.getNodeById(Long.parseLong(rel.getHTarget()));
-                    ComplexReadingModel hTargetCRM = new ComplexReadingModel(hTarget);
-                    List<ComplexReadingModel> hTargetReadings = hTargetCRM.getComponents();
-
-                    // Get all the witnesses of the readings composing the hypernode
-                    // and filter the the common witnesses between the readings
-                    List<String> hTargetCommonWitnesses = hTargetReadings
-                            .stream()
-                            .flatMap(x -> x.getReading().getWitnesses().stream())
-                            .filter(y -> hTargetReadings.stream()
-                                    .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                            .distinct()
-                            .collect(Collectors.toList());
-
-                    // List<String> readingsWitnesses =
-                    // hTargetReadings.get(0).getReading().getWitnesses();
-                    ArrayList<String> hTargetSigList = new ArrayList<>();
-                    for (String wit : hTargetCommonWitnesses)
-                        hTargetSigList.add("#" + wit);
-                    Collections.sort(hTargetSigList);
-                    String hTargetWitnessList = String.join(" ", hTargetSigList);
-
-                    writer.writeStartElement("rdg");
-                    if (hTargetCRM.getId() != null && !hTargetCRM.getId().isEmpty()) {
-                        writer.writeAttribute("xml:id", hTargetCRM.getId());
-                    }
-
-                    if (hTargetWitnessList != null && !hTargetWitnessList.isEmpty()) {
-                        writer.writeAttribute("wit", hTargetWitnessList);
-                    }
-
-                    if (rel.getType() != null && !rel.getType().isEmpty()) {
-                        writer.writeAttribute("cause", rel.getType());
-                    }
-                    // sort hypernodeReadings by rank
-                    // hypernodeReadings.stream().forEachOrdered(x -> {
-                    // x.getReading().getRank();
-                    // });
-
-                    List<ComplexReadingModel> hTargetSortedHypernodeReadings = hTargetReadings
-                            .stream()
-                            .sorted(
-                                    java.util.Comparator.comparing(x -> x.getReading().getRank()
-
-                                    )).collect(Collectors.toList());
-
-                    // List<ComplexReadingModel> sortedHypernodeReadings =
-                    // hypernodeReadings.stream()
-                    // .sorted(Comparator.comparing(x -> x.getReading().getRank()))
-                    // .collect(Collectors.toList());
-
-                    for (ComplexReadingModel htrm : hTargetSortedHypernodeReadings) {
-                        writer.writeCharacters(htrm.getReading().getText());
-                    }
-
-                    writer.writeEndElement(); // rdg
-
-                    // ANNOTATION FOR RELATION
-                    if (rel.getAnnotation() != null && !rel.getAnnotation().isEmpty()) {
-                        writer.writeStartElement("note");
-                        writer.writeCharacters(rel.getAnnotation());
-                        writer.writeEndElement(); // note
-                    }
-
-                    writer.writeEndElement(); // app
-
-                }
-                writer.writeEndElement(); // relationshiplist
-
-                // GET HYPERREADING NODES
-                ArrayList<ComplexReadingModel> complexReadingModels = new ArrayList<>();
-                Set<Node> sectionNodes = VariantGraphService.returnTraditionSection(startNode).nodes()
-                        .stream()
-                        .filter(x -> x.hasLabel(Label.label("HYPERREADING"))).collect(Collectors.toSet());
-                sectionNodes.forEach(x -> complexReadingModels.add(new ComplexReadingModel(x)));
-
-                writer.writeStartElement("hypernodes");
+                writer.writeStartElement("div");
                 writer.writeStartElement("p");
 
-                writer.writeStartElement("app");
-                for (ComplexReadingModel crm : complexReadingModels) {
+                VariantListModel vlm = new VariantListModel(
+                        sectionNode, baseWitness, excWitnesses, conflate, suppressMatching,
+                        !excludeNonsense.equals("no"), !excludeType1.equals("no"),
+                        significant, !combine.equals("no"));
 
-                    List<ComplexReadingModel> hypernodeReadings = crm.getComponents();
+                for (ReadingModel readingModel : vlm.getBaseChain()) {
 
-                    // Get all the witnesses of the readings composing the hypernode
-                    // and filter the the common witnesses between the readings
-                    List<String> commonWitnesses = hypernodeReadings
-                            .stream()
-                            .flatMap(x -> x.getReading().getWitnesses().stream())
-                            .filter(y -> hypernodeReadings.stream()
-                                    .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                            .distinct()
+                    List<VariantLocationModel> variantLocationFound = vlm.getVariantlist().stream()
+                            .filter(y -> y.getRankIndex().equals(readingModel.getRank()))
                             .collect(Collectors.toList());
 
-                    // List<String> readingsWitnesses =
-                    // hypernodeReadings.get(0).getReading().getWitnesses();
-                    ArrayList<String> sigList = new ArrayList<>();
-                    for (String wit : commonWitnesses)
-                        sigList.add("#" + wit);
-                    Collections.sort(sigList);
-                    String witnessList = String.join(" ", sigList);
+                    if (!variantLocationFound.isEmpty()) {
 
-                    writer.writeStartElement("rdg");
+                        processVariantsApparatus(readingModel, variantLocationFound, writer);
 
-                    if (witnessList != null && !witnessList.isEmpty()) {
-                        writer.writeAttribute("wit", witnessList);
                     }
 
-                    List<ComplexReadingModel> sortedHypernodeReadings = hypernodeReadings
-                            .stream()
-                            .sorted(
-                                    java.util.Comparator.comparing(x -> x.getReading().getRank()
+                    if (variantLocationFound.isEmpty()) {
 
-                                    )).collect(Collectors.toList());
+                        if (!readingModel.getText().equals("#START#")
+                                && !readingModel.getText().equals("#END#")) {
 
-                    for (ComplexReadingModel hrm : sortedHypernodeReadings) {
-
-                        if (hrm.getReading() != null) {
-
-                            writer.writeCharacters(hrm.getReading().getText());
+                            try {
+                                writer.writeCharacters(readingModel.getText() + " ");
+                            } catch (XMLStreamException e) {
+                                e.printStackTrace();
+                            }
 
                         }
                     }
 
-                    writer.writeEndElement(); // rdg
-
                 }
-                writer.writeEndElement(); // app
-
-                writer.writeEndElement(); // p
-                writer.writeEndElement(); // hypernodes
-
-                writer.writeStartElement("div");
-                writer.writeStartElement("p");
-                VariantListModel vlm = new VariantListModel(
-                        sectionNode, baseWitness, excWitnesses, conflate, suppressMatching,
-                        !excludeNonsense.equals("no"), !excludeType1.equals("no"), significant, !combine.equals("no"));
-                vlm.getBaseChain().forEach(
-                        x -> {
-                            List<VariantLocationModel> variantLocationFound = vlm.getVariantlist().stream()
-                                    .filter(y -> y.getRankIndex().equals(x.getRank())).collect(Collectors.toList());
-
-                            // If the reading has variants, build up the critical apparatus
-                            if (!variantLocationFound.isEmpty()) {
-                                try {
-
-                                    // OPEN CRITICAL APPARATUS
-                                    writer.writeStartElement("app");
-                                    writer.writeStartElement("lem"); // OPEN LEMMA
-
-                                    // getWitnessList of lemma
-                                    List<String> lem_wits = x.getWitnesses();
-                                    ArrayList<String> sigList = new ArrayList<>();
-                                    for (String l : lem_wits)
-                                        sigList.add("#" + l);
-                                    Collections.sort(sigList);
-                                    String witnessList = String.join(" ", sigList);
-                                    writer.writeAttribute("wit", witnessList);
-
-                                    // getRank
-                                    writer.writeAttribute("rank", Long.toString(x.getRank()));
-
-                                    writer.writeCharacters(x.getText()); // write inner text
-
-                                    writer.writeEndElement(); // lem
-
-                                    VariantLocationModel vloc = variantLocationFound.get(0);
-                                    for (VariantModel vm : vloc.getVariants()) {
-
-                                        writer.writeStartElement("rdg");
-
-                                        // getWitnessList
-                                        Map<String, List<String>> wits = vm.getWitnesses();
-                                        ArrayList<String> variantSigList = new ArrayList<>();
-                                        for (String l : wits.keySet())
-                                            for (String s : wits.get(l))
-                                                variantSigList.add(
-                                                        l.equals("witnesses") ? "#" + s
-                                                                : "#" + String.format("%s (%s)", s, l));
-                                        Collections.sort(variantSigList);
-                                        String variantWitnessList = String.join(" ", variantSigList);
-                                        writer.writeAttribute("wit", variantWitnessList);
-
-                                        // getRanksList
-                                        // Empty nodes have no rank and make the export fail
-                                        if (vm.getReadings().size() > 0) {
-
-                                            String variantRank = Long.toString(vm.getReadings().get(0).getRank());
-                                            writer.writeAttribute("rank", variantRank);
-                                        }
-
-                                        String varText = ReadingService.textOfReadings(vm.getReadings(),
-                                                vloc.isNormalised(),
-                                                false);
-                                        writer.writeCharacters(varText);
-                                        writer.writeEndElement(); // rdg
-                                    }
-                                    writer.writeEndElement(); // app
-                                    writer.writeCharacters(" ");
-                                } catch (XMLStreamException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                            // If the reading has no variants, just write it out
-                            else {
-                                try {
-                                    writer.writeCharacters(x.getText() + " ");
-                                } catch (XMLStreamException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        });
                 writer.writeEndElement(); // p
                 writer.writeEndElement(); // div
             }
@@ -771,7 +556,8 @@ public class TabularExporter {
         }
     }
 
-    private Response getCriticalApparatus2(String tradId, ArrayList<Node> traditionSections, String significant,
+    private Response getCriticalApparatusWithRelationships(String tradId, ArrayList<Node> traditionSections,
+            String significant,
             String excludeType1,
             String excludeNonsense, String combine, String suppressMatching, String baseWitness, List<String> conflate,
             List<String> excWitnesses, boolean excludeLayers) throws Exception {
@@ -900,7 +686,611 @@ public class TabularExporter {
                     RelationStruct relStruct = new RelationStruct();
                     relStruct.relationModel = rel;
 
-                    //IF THEREIS HSOURCE AND HTARGET
+                    // IF THEREIS HSOURCE AND HTARGET
+                    if (rel.getHSource() != null && !rel.getHSource().isEmpty() && rel.getHTarget() != null
+                            && !rel.getHTarget().isEmpty()) {
+                        Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
+                        Node hTarget = db.getNodeById(Long.parseLong(rel.getHTarget()));
+                        relStruct.hSource = new ComplexReadingModel(hSource);
+                        relStruct.hTarget = new ComplexReadingModel(hTarget);
+
+                        relStruct.hSourceReadings = relStruct.hSource.getComponents().stream()
+                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                .map(x -> x.getReading())
+                                .collect(Collectors.toList());
+                        relStruct.hTargetReadings = relStruct.hTarget.getComponents().stream()
+                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                .map(x -> x.getReading())
+                                .collect(Collectors.toList());
+                    }
+
+                    Node source = db.getNodeById(Long.parseLong(rel.getSource()));
+                    Node target = db.getNodeById(Long.parseLong(rel.getTarget()));
+                    relStruct.sourceNode = new ReadingModel(source);
+                    relStruct.targetNode = new ReadingModel(target);
+
+                    relStructList.add(relStruct);
+
+                }
+
+                writer.writeStartElement("div");
+                writer.writeStartElement("p");
+
+                VariantListModel vlm = new VariantListModel(
+                        sectionNode, baseWitness, excWitnesses, conflate, suppressMatching,
+                        !excludeNonsense.equals("no"), !excludeType1.equals("no"),
+                        significant, !combine.equals("no"));
+
+                for (ReadingModel readingModel : vlm.getBaseChain()) {
+                    List<VariantLocationModel> variantLocationFound = vlm.getVariantlist().stream()
+                            .filter(y -> y.getRankIndex().equals(readingModel.getRank()))
+                            .collect(Collectors.toList());
+
+                    String readingId = readingModel.getId();
+                    Boolean defined_by_manual_relation = false;
+
+                    for (RelationStruct relStruct : relStructList) {
+
+                        if (!relStruct.relationModel.getIs_hyperrelation()
+                                && relStruct.relationModel.getTarget().equals(readingId)
+                                || !relStruct.relationModel.getIs_hyperrelation()
+                                        && relStruct.relationModel.getSource().equals(readingId)) {
+
+                            if (relStruct.relationModel.getAnnotation() != null
+                                    && !relStruct.relationModel.getAnnotation().isEmpty()) {
+
+                                writer.writeStartElement("note");
+                                // writer.writeAttribute("motivation", "assesing");
+                                // writer.writeAttribute("target", relStruct.relationModel.getId());
+                                writer.writeCharacters(relStruct.relationModel.getAnnotation());
+                                writer.writeEndElement(); // annotation
+                            }
+
+                            defined_by_manual_relation = true;
+
+                            processStandardRelationShip(relStruct, writer);
+                        }
+
+                    }
+
+                    // If the reading has variants,
+                    // ans is not a standard manual relationship
+                    // build up the critical apparatus.
+                    if (!variantLocationFound.isEmpty() && !defined_by_manual_relation) {
+
+                        processVariantsApparatus(readingModel, variantLocationFound, writer);
+
+                    }
+                    // If the reading has no variants, just write it out
+
+                    if (variantLocationFound.isEmpty() && !defined_by_manual_relation) {
+
+                        if (!readingModel.getText().equals("#START#")
+                                && !readingModel.getText().equals("#END#")) {
+
+                            try {
+                                writer.writeCharacters(readingModel.getText() + " ");
+                            } catch (XMLStreamException e) {
+                                e.printStackTrace();
+                            }
+
+                        }
+                    }
+
+                }
+
+                writer.writeEndElement(); // p
+                writer.writeEndElement(); // div
+
+            }
+
+            writer.writeEndElement(); // body
+            writer.writeEndElement(); // text
+            writer.writeEndElement(); // TEI
+
+            writer.flush();
+
+            return Response.ok(
+                    new String(result.toString().getBytes(), StandardCharsets.UTF_8), MediaType.APPLICATION_XML)
+                    .build();
+            // MediaType.APPLICATION_JSON_TYPE).build()
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity(e.getMessage()).build();
+        }
+
+    }
+
+    private Response getCriticalApparatusWithHyperrelation(String tradId, ArrayList<Node> traditionSections,
+            String significant,
+            String excludeType1,
+            String excludeNonsense, String combine, String suppressMatching, String baseWitness, List<String> conflate,
+            List<String> excWitnesses, boolean excludeLayers) throws Exception {
+
+        try (Transaction tx = db.beginTx()) {
+
+            // XML INDENTED WRITER
+            StringWriter result = new StringWriter();
+            XMLOutputFactory output = XMLOutputFactory.newInstance();
+            XMLStreamWriter writer;
+            try {
+                XMLStreamWriter xmlStreamWriter = output.createXMLStreamWriter(result);
+                writer = new IndentingXMLStreamWriter(xmlStreamWriter);
+
+            } catch (XMLStreamException e) {
+                e.printStackTrace();
+                return Response.serverError().build();
+            }
+
+            // ROOT ELEMENT
+            writer.writeStartDocument("UTF-8", "1.0");
+            writer.writeStartElement("TEI");
+            writer.setDefaultNamespace("http://www.tei-c.org/ns/1.0");
+            writer.writeDefaultNamespace("http://www.tei-c.org/ns/1.0");
+            writer.writeAttribute("xml:lang", "en");
+
+            // TEI XML HEADER
+            writer.writeStartElement("teiHeader");
+            writer.writeStartElement("fileDesc");
+            writer.writeStartElement("titleStmt");
+            writer.writeStartElement("title");
+            if (tradId != null) {
+                // get tradition node
+                Node traditionNode = VariantGraphService.getTraditionNode(tradId, db);
+                String traditionName = traditionNode.getProperty("name").toString();
+
+                if (traditionNode.hasProperty("language")) {
+                    String traditionLanguage = traditionNode.getProperty("language").toString();
+                    String tradLanAbbr = traditionLanguage.substring(0, 2);
+                    writer.writeAttribute("xml:lang", tradLanAbbr);
+                }
+
+                writer.writeCharacters(traditionName);
+                writer.writeEndElement(); // title
+                writer.writeEndElement(); // titleStmt
+            }
+
+            // WITNESS LIST
+            writer.writeStartElement("sourceDesc");
+            writer.writeStartElement("listWit");
+
+            Node traditionNode = VariantGraphService.getTraditionNode(tradId, db);
+            TraditionModel tradition = new TraditionModel(traditionNode);
+            ArrayList<String> witnesses = tradition.getWitnesses();
+
+            // get witness nodes from tradition list of witnesses
+            for (String wit : witnesses) {
+
+                writer.writeStartElement("witness");
+                writer.writeAttribute("xml:id", wit);
+
+                writer.writeStartElement("abbr");
+                writer.writeAttribute("type", "sigil");
+                writer.writeCharacters(wit);
+                writer.writeEndElement(); // abbr
+
+                writer.writeEndElement(); // witness
+
+            }
+
+            writer.writeEndElement(); // listWit
+            writer.writeEndElement(); // sourceDesc
+            writer.writeEndElement(); // fileDesc
+
+            // ENCONDING DESCRIPTION
+            writer.writeStartElement("encodingDesc");
+
+            // VARIANT ENCODING
+            writer.writeEmptyElement("variantEnconding");
+            writer.writeAttribute("method", "parralel-segmentation");
+            writer.writeAttribute("location", "internal");
+
+            // PROFILE DESCRIPTION
+            // No info available
+
+            // REVISION DESCRIPTION
+            // No info available
+
+            // CLOSE HEADER
+            writer.writeEndElement(); // encodingDesc
+            writer.writeEndElement(); // teiHeader
+
+            // START CORPUS
+            writer.writeStartElement("text");
+            writer.writeStartElement("body");
+            for (Node sectionNode : traditionSections) {
+
+                // GET START NODE OF SECTION
+                String sectId = Long.toString(sectionNode.getId());
+                Node startNode = VariantGraphService.getStartNode(sectId, db);
+                if (startNode == null)
+                    throw new Exception("Section " + sectId + " has no start node");
+
+                // GET ALL RR RELATIONSHIPS AND CAST THEM INTO EXTENDED CLASS "RELATIONNODES"
+                // LIST
+                ArrayList<RelationModel> relationshipsList = new ArrayList<>();
+                try (Transaction txSectionNode = db.beginTx()) {
+                    db.traversalDescription().depthFirst()
+                            .relationships(ERelations.SEQUENCE, Direction.OUTGOING)
+                            .uniqueness(Uniqueness.NODE_GLOBAL)
+                            .traverse(startNode).nodes().forEach(
+                                    n -> n.getRelationships(ERelations.RELATED, Direction.OUTGOING)
+                                            .forEach(r -> relationshipsList.add(
+                                                    new RelationModel(r, true))));
+
+                    txSectionNode.success();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                // FEED A LIST OF RELATION STRUCT STORING NODES FOR FUTURE USE
+                // INSTEAD OF TRAVERSING THE GRAPH EACH TIME WE WANT TO COMPARE
+                // STANDARD NODES LOOKING FOR HYPERNODES OR RELATIONSHIPS
+                ArrayList<RelationStruct> relStructList = new ArrayList<>();
+                for (RelationModel rel : relationshipsList) {
+                    RelationStruct relStruct = new RelationStruct();
+                    relStruct.relationModel = rel;
+
+                    // IF THERE IS HSOURCE AND HTARGET
+                    if (rel.getHSource() != null && !rel.getHSource().isEmpty() && rel.getHTarget() != null
+                            && !rel.getHTarget().isEmpty()) {
+                        Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
+                        Node hTarget = db.getNodeById(Long.parseLong(rel.getHTarget()));
+                        relStruct.hSource = new ComplexReadingModel(hSource);
+                        relStruct.hTarget = new ComplexReadingModel(hTarget);
+
+                        relStruct.hSourceReadings = relStruct.hSource.getComponents().stream()
+                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                .map(x -> x.getReading())
+                                .collect(Collectors.toList());
+                        relStruct.hTargetReadings = relStruct.hTarget.getComponents().stream()
+                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                .map(x -> x.getReading())
+                                .collect(Collectors.toList());
+                    }
+
+                    Node source = db.getNodeById(Long.parseLong(rel.getSource()));
+                    Node target = db.getNodeById(Long.parseLong(rel.getTarget()));
+                    relStruct.sourceNode = new ReadingModel(source);
+                    relStruct.targetNode = new ReadingModel(target);
+
+                    relStructList.add(relStruct);
+
+                }
+
+                ArrayList<ComplexReadingModel> complexReadingModels = new ArrayList<>();
+                Set<Node> sectionNodes = VariantGraphService.returnTraditionSection(startNode).nodes().stream()
+                    .filter(x -> x.hasLabel(Label.label("HYPERREADING"))).collect(Collectors.toSet());
+                sectionNodes.forEach(x -> complexReadingModels.add(new ComplexReadingModel(x)));
+                tx.success();
+
+                writer.writeStartElement("div");
+                writer.writeStartElement("p");
+
+                /*
+                 * Get all the nodes/variants (including nodes with no variants) of the section
+                 * as VariantListModel
+                 * For each node in the section:
+                 * Check if the node has variants and store them as a List<VariantLocationModel>
+                 * 
+                 * Build Hyperrelation
+                 * If the node has variants, build the critical apparatus
+                 * If the node is the start of a relationship
+                 * If the relationship is a hyperrelation, build the critical apparatus
+                 * for each reading in the first hypernode, build the rdg
+                 * If the relationship is a normal relation, build the critical apparatus
+                 * If the node has no variants, just write the reading
+                 * 
+                 * 
+                 */
+                VariantListModel vlm = new VariantListModel(
+                        sectionNode, baseWitness, excWitnesses, conflate, suppressMatching,
+                        !excludeNonsense.equals("no"), !excludeType1.equals("no"),
+                        significant, !combine.equals("no"));
+
+                for (ReadingModel readingModel : vlm.getBaseChain()) {
+                    List<VariantLocationModel> variantLocationFound = vlm.getVariantlist().stream()
+                            .filter(y -> y.getRankIndex().equals(readingModel.getRank()))
+                            .collect(Collectors.toList());
+
+                    String readingId = readingModel.getId();
+                    Boolean defined_by_manual_relation = false;
+                    Boolean defined_by_hyperrelation = false;
+
+                    for (RelationStruct relStruct : relStructList) {
+
+                        if (relStruct.hSource != null && relStruct.hTarget != null) {
+
+                            if (relStruct.hSource.getId().equals(readingId)
+                                    || relStruct.hTarget.getId().equals(readingId)) {
+
+                                if (relStruct.relationModel.getAnnotation() != null
+                                        && !relStruct.relationModel.getAnnotation().isEmpty()) {
+
+                                    writer.writeStartElement("note");
+                                    writer.writeAttribute("type", "hyperrelation");
+                                    // writer.writeAttribute("motivation", "assesing");
+                                    // writer.writeAttribute("target", relStruct.relationModel.getId());
+                                    writer.writeCharacters(relStruct.relationModel.getAnnotation());
+                                    writer.writeEndElement(); // annotation
+                                }
+
+                                defined_by_hyperrelation = true;
+
+                                // processHyperRelationShip(relStruct, vlm, writer);
+
+                                //first hypernode
+                                writer.writeStartElement("app");
+                                writer.writeStartElement("lem");
+                                writer.writeAttribute("xml:id", relStruct.hSource.getId());
+                                
+                                for (ReadingModel reading : relStruct.hSourceReadings) {
+                                    
+                                    // check for reading variants 
+                                    List<VariantLocationModel> variantLocationFoundHyper = vlm.getVariantlist().stream()
+                                            .filter(y -> y.getRankIndex().equals(reading.getRank()))
+                                            .collect(Collectors.toList());
+
+                                    if (!variantLocationFoundHyper.isEmpty()) {
+                                            
+                                            processVariantsApparatus(reading, variantLocationFoundHyper, writer);
+    
+                                    }
+                                    // If the reading has no variants, just write it out
+                                    if (variantLocationFoundHyper.isEmpty()) {
+
+                                        if (!reading.getText().equals("#START#")
+                                                && !reading.getText().equals("#END#")) {
+
+                                            try {
+                                                writer.writeCharacters(reading.getText() + " ");
+                                            } catch (XMLStreamException e) {
+                                                e.printStackTrace();
+                                            }
+
+                                        }
+                                    }
+                                }
+                                writer.writeEndElement(); // lemm
+                                
+                                //second hypernode
+                                writer.writeStartElement("rdg");
+                                writer.writeAttribute("wit", relStruct.hTarget.getId());
+
+                                for (ReadingModel reading : relStruct.hTargetReadings) {
+                                    
+                                    // check for reading variants 
+                                    List<VariantLocationModel> variantLocationFoundHyper = vlm.getVariantlist().stream()
+                                            .filter(y -> y.getRankIndex().equals(reading.getRank()))
+                                            .collect(Collectors.toList());
+
+                                    if (!variantLocationFoundHyper.isEmpty()) {
+                                            
+                                            processVariantsApparatus(reading, variantLocationFoundHyper, writer);
+    
+                                    }
+                                    // If the reading has no variants, just write it out
+                                    if (variantLocationFoundHyper.isEmpty()) {
+
+                                        if (!reading.getText().equals("#START#")
+                                                && !reading.getText().equals("#END#")) {
+
+                                            try {
+                                                writer.writeCharacters(reading.getText() + " ");
+                                            } catch (XMLStreamException e) {
+                                                e.printStackTrace();
+                                            }
+
+                                        }
+                                    }
+                                }
+
+                                
+                                writer.writeEndElement(); // rdg
+                                writer.writeEndElement(); // app
+                            }
+                        }
+
+                        if ((relStruct.sourceNode.getId().equals(readingId)|| relStruct.targetNode.getId().equals(readingId))
+                            && (relStruct.hSource == null || relStruct.hTarget == null)) {
+
+                            if (relStruct.relationModel.getAnnotation() != null
+                                    && !relStruct.relationModel.getAnnotation().isEmpty()) {
+
+                                writer.writeStartElement("note");
+                                writer.writeAttribute("type", "manual relation");
+                                // writer.writeAttribute("motivation", "assesing");
+                                // writer.writeAttribute("target", relStruct.relationModel.getId());
+                                writer.writeCharacters(relStruct.relationModel.getAnnotation());
+                                writer.writeEndElement(); // annotation
+                            }
+
+                            defined_by_manual_relation = true;
+
+                            processStandardRelationShip(relStruct, writer);
+                        }
+
+                    }
+
+                    // If the reading has variants,
+                    // ans is not a standard manual relationship
+                    // build up the critical apparatus.
+                    if (!variantLocationFound.isEmpty() && !defined_by_manual_relation && !defined_by_hyperrelation) {
+
+                        processVariantsApparatus(readingModel, variantLocationFound, writer);
+
+                    }
+                    // If the reading has no variants, just write it out
+
+                    if (variantLocationFound.isEmpty() && !defined_by_manual_relation && !defined_by_hyperrelation) {
+
+                        if (!readingModel.getText().equals("#START#")
+                                && !readingModel.getText().equals("#END#")) {
+
+                            try {
+                                writer.writeCharacters(readingModel.getText() + " ");
+                            } catch (XMLStreamException e) {
+                                e.printStackTrace();
+                            }
+
+                        }
+                    }
+
+                }
+
+                writer.writeEndElement(); // p
+                writer.writeEndElement(); // div
+
+            }
+
+            writer.writeEndElement(); // body
+            writer.writeEndElement(); // text
+            writer.writeEndElement(); // TEI
+
+            writer.flush();
+
+            return Response.ok(
+                    new String(result.toString().getBytes(), StandardCharsets.UTF_8), MediaType.APPLICATION_XML)
+                    .build();
+            // MediaType.APPLICATION_JSON_TYPE).build()
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.serverError().entity(e.getMessage()).build();
+        }
+
+    }
+
+    private Response getCriticalApparatusWithHyperrelationsRecursive(String tradId, ArrayList<Node> traditionSections,
+            String significant,
+            String excludeType1,
+            String excludeNonsense, String combine, String suppressMatching, String baseWitness, List<String> conflate,
+            List<String> excWitnesses, boolean excludeLayers) throws Exception {
+
+        try (Transaction tx = db.beginTx()) {
+
+            // XML INDENTED WRITER
+            StringWriter result = new StringWriter();
+            XMLOutputFactory output = XMLOutputFactory.newInstance();
+            XMLStreamWriter writer;
+            try {
+                XMLStreamWriter xmlStreamWriter = output.createXMLStreamWriter(result);
+                writer = new IndentingXMLStreamWriter(xmlStreamWriter);
+
+            } catch (XMLStreamException e) {
+                e.printStackTrace();
+                return Response.serverError().build();
+            }
+
+            // ROOT ELEMENT
+            writer.writeStartDocument("UTF-8", "1.0");
+            writer.writeStartElement("TEI");
+            writer.setDefaultNamespace("http://www.tei-c.org/ns/1.0");
+            writer.writeDefaultNamespace("http://www.tei-c.org/ns/1.0");
+            writer.writeAttribute("xml:lang", "en");
+
+            // TEI XML HEADER
+            writer.writeStartElement("teiHeader");
+            writer.writeStartElement("fileDesc");
+            writer.writeStartElement("titleStmt");
+            writer.writeStartElement("title");
+            if (tradId != null) {
+                // get tradition node
+                Node traditionNode = VariantGraphService.getTraditionNode(tradId, db);
+                String traditionName = traditionNode.getProperty("name").toString();
+
+                if (traditionNode.hasProperty("language")) {
+                    String traditionLanguage = traditionNode.getProperty("language").toString();
+                    String tradLanAbbr = traditionLanguage.substring(0, 2);
+                    writer.writeAttribute("xml:lang", tradLanAbbr);
+                }
+
+                writer.writeCharacters(traditionName);
+                writer.writeEndElement(); // title
+                writer.writeEndElement(); // titleStmt
+            }
+
+            // WITNESS LIST
+            writer.writeStartElement("sourceDesc");
+            writer.writeStartElement("listWit");
+
+            Node traditionNode = VariantGraphService.getTraditionNode(tradId, db);
+            TraditionModel tradition = new TraditionModel(traditionNode);
+            ArrayList<String> witnesses = tradition.getWitnesses();
+
+            // get witness nodes from tradition list of witnesses
+            for (String wit : witnesses) {
+
+                writer.writeStartElement("witness");
+                writer.writeAttribute("xml:id", wit);
+
+                writer.writeStartElement("abbr");
+                writer.writeAttribute("type", "sigil");
+                writer.writeCharacters(wit);
+                writer.writeEndElement(); // abbr
+
+                writer.writeEndElement(); // witness
+
+            }
+
+            writer.writeEndElement(); // listWit
+            writer.writeEndElement(); // sourceDesc
+            writer.writeEndElement(); // fileDesc
+
+            // ENCONDING DESCRIPTION
+            writer.writeStartElement("encodingDesc");
+
+            // VARIANT ENCODING
+            writer.writeEmptyElement("variantEnconding");
+            writer.writeAttribute("method", "parralel-segmentation");
+            writer.writeAttribute("location", "internal");
+
+            // PROFILE DESCRIPTION
+            // No info available
+
+            // REVISION DESCRIPTION
+            // No info available
+
+            // CLOSE HEADER
+            writer.writeEndElement(); // encodingDesc
+            writer.writeEndElement(); // teiHeader
+
+            // START CORPUS
+            writer.writeStartElement("text");
+            writer.writeStartElement("body");
+            for (Node sectionNode : traditionSections) {
+
+                // GET START NODE OF SECTION
+                String sectId = Long.toString(sectionNode.getId());
+                Node startNode = VariantGraphService.getStartNode(sectId, db);
+                if (startNode == null)
+                    throw new Exception("Section " + sectId + " has no start node");
+
+                // GET ALL RR RELATIONSHIPS AND CAST THEM INTO EXTENDED CLASS "RELATIONNODES"
+                // LIST
+                ArrayList<RelationModel> relationshipsList = new ArrayList<>();
+                try (Transaction txSectionNode = db.beginTx()) {
+                    db.traversalDescription().depthFirst()
+                            .relationships(ERelations.SEQUENCE, Direction.OUTGOING)
+                            .uniqueness(Uniqueness.NODE_GLOBAL)
+                            .traverse(startNode).nodes().forEach(
+                                    n -> n.getRelationships(ERelations.RELATED, Direction.OUTGOING)
+                                            .forEach(r -> relationshipsList.add(
+                                                    new RelationModel(r, true))));
+
+                    txSectionNode.success();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                // FEED A LIST OF RELATION STRUCT STORING NODES FOR FUTURE USE
+                // INSTEAD OF TRAVERSING THE GRAPH EACH TIME WE WANT TO COMPARE
+                // STANDARD NODES LOOKING FOR HYPERNODES OR RELATIONSHIPS
+                ArrayList<RelationStruct> relStructList = new ArrayList<>();
+                for (RelationModel rel : relationshipsList) {
+                    RelationStruct relStruct = new RelationStruct();
+                    relStruct.relationModel = rel;
+
+                    // IF THEREIS HSOURCE AND HTARGET
                     if (rel.getHSource() != null && !rel.getHSource().isEmpty() && rel.getHTarget() != null
                             && !rel.getHTarget().isEmpty()) {
                         Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
@@ -938,208 +1328,43 @@ public class TabularExporter {
                     // writer.writeEndElement(); // relation
                 }
 
-                // // write down all relationships
-                // writer.writeStartElement("Relationshiplist");
-                // for (RelationModel relationship : relationshipsList) {
-                // writer.writeStartElement("relation");
-                // writer.writeAttribute("id", relationship.getId());
-                // writer.writeAttribute("source", relationship.getSource()); // reading id
-                // writer.writeAttribute("target", relationship.getTarget()); // reading id
-                // writer.writeAttribute("hypernodeSource", relationship.getHSource()); //
-                // hypernode id
-                // writer.writeAttribute("hypernodeTarget", relationship.getHTarget()); //
-                // hypernode id
-                // writer.writeAttribute("type", relationship.getType());
-                // writer.writeEndElement(); // relation
+                ArrayList<ComplexReadingModel> complexReadingModels = new ArrayList<>();
+                Set<Node> sectionNodes = VariantGraphService.returnTraditionSection(startNode).nodes()
+                        .stream()
+                        .filter(x -> x.hasLabel(Label.label("HYPERREADING"))).collect(Collectors.toSet());
+                sectionNodes.forEach(x -> complexReadingModels.add(new ComplexReadingModel(x)));
+                tx.success();
 
-                // // HYPERNODE APPARATUS
-                // writer.writeStartElement("app");
-                // writer.writeAttribute("is_hyperrelation",
-                // Boolean.toString(relationship.getIs_hyperrelation()));
-                // writer.writeAttribute("type", relationship.getType());
-
-                // if (relationship.getIs_hyperrelation()) {
-                // // GET BOTH HYPERNODEs
-                // Node hSource = db.getNodeById(Long.parseLong(relationship.getHSource()));
-                // ComplexReadingModel hSourceCRM = new ComplexReadingModel(hSource);
-                // List<ComplexReadingModel> hSourceReadings = hSourceCRM.getComponents();
-
-                // // Get all the witnesses of the readings composing the hypernode
-                // // and filter the the common witnesses between the readings
-                // List<String> hSourceCommonWitnesses = hSourceReadings
-                // .stream()
-                // .flatMap(x -> x.getReading().getWitnesses().stream())
-                // .filter(y -> hSourceReadings.stream()
-                // .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                // .distinct()
-                // .collect(Collectors.toList());
-
-                // ArrayList<String> hSourceSigList = new ArrayList<>();
-                // for (String wit : hSourceCommonWitnesses)
-                // hSourceSigList.add("#" + wit);
-                // Collections.sort(hSourceSigList);
-                // String hSourceWitnessList = String.join(" ", hSourceSigList);
-
-                // writer.writeStartElement("rdg");
-
-                // if (hSourceCRM.getId() != null && !hSourceCRM.getId().isEmpty()) {
-                // writer.writeAttribute("xml:id", hSourceCRM.getId());
-                // }
-
-                // if (hSourceWitnessList != null && !hSourceWitnessList.isEmpty()) {
-                // writer.writeAttribute("wit", hSourceWitnessList);
-                // }
-
-                // List<ComplexReadingModel> hSourceSortedHypernodeReadings = hSourceReadings
-                // .stream()
-                // .sorted(
-                // java.util.Comparator.comparing(
-                // x -> x.getReading().getRank()))
-                // .collect(Collectors.toList());
-
-                // for (ComplexReadingModel hsrm : hSourceSortedHypernodeReadings) {
-
-                // ReadingModel reading = hsrm.getReading();
-                // writer.writeCharacters(reading.getText());
-                // writer.writeCharacters(" | getID:" + reading.getId());
-                // writer.writeCharacters(" | getRank:" + reading.getRank().toString());
-                // writer.writeCharacters(" | getWitnesses:" +
-                // reading.getWitnesses().toString());
-                // }
-
-                // writer.writeEndElement(); // rdg
-
-                // Node hTarget = db.getNodeById(Long.parseLong(relationship.getHTarget()));
-                // ComplexReadingModel hTargetCRM = new ComplexReadingModel(hTarget);
-                // List<ComplexReadingModel> hTargetReadings = hTargetCRM.getComponents();
-
-                // // Get all the witnesses of the readings composing the hypernode
-                // // and filter the the common witnesses between the readings
-                // List<String> hTargetCommonWitnesses = hTargetReadings
-                // .stream()
-                // .flatMap(x -> x.getReading().getWitnesses().stream())
-                // .filter(y -> hTargetReadings.stream()
-                // .allMatch(z -> z.getReading().getWitnesses().contains(y)))
-                // .distinct()
-                // .collect(Collectors.toList());
-
-                // // List<String> readingsWitnesses =
-                // // hTargetReadings.get(0).getReading().getWitnesses();
-                // ArrayList<String> hTargetSigList = new ArrayList<>();
-                // for (String wit : hTargetCommonWitnesses)
-                // hTargetSigList.add("#" + wit);
-                // Collections.sort(hTargetSigList);
-                // String hTargetWitnessList = String.join(" ", hTargetSigList);
-
-                // writer.writeStartElement("rdg");
-                // if (hTargetCRM.getId() != null && !hTargetCRM.getId().isEmpty()) {
-                // writer.writeAttribute("xml:id", hTargetCRM.getId());
-                // }
-
-                // if (hTargetWitnessList != null && !hTargetWitnessList.isEmpty()) {
-                // writer.writeAttribute("wit", hTargetWitnessList);
-                // }
-
-                // if (relationship.getType() != null && !relationship.getType().isEmpty()) {
-                // writer.writeAttribute("cause", relationship.getType());
-                // }
-                // // sort hypernodeReadings by rank
-                // // hypernodeReadings.stream().forEachOrdered(x -> {
-                // // x.getReading().getRank();
-                // // });
-
-                // List<ComplexReadingModel> hTargetSortedHypernodeReadings = hTargetReadings
-                // .stream()
-                // .sorted(
-                // java.util.Comparator.comparing(x -> x.getReading().getRank()
-
-                // )).collect(Collectors.toList());
-
-                // // List<ComplexReadingModel> sortedHypernodeReadings =
-                // // hypernodeReadings.stream()
-                // // .sorted(Comparator.comparing(x -> x.getReading().getRank()))
-                // // .collect(Collectors.toList());
-
-                // for (ComplexReadingModel htrm : hTargetSortedHypernodeReadings) {
-
-                // ReadingModel reading = htrm.getReading();
-                // writer.writeCharacters("text:" + reading.getText());
-                // writer.writeCharacters(" | getID:" + reading.getId());
-                // writer.writeCharacters(" | getRank:" + reading.getRank().toString());
-                // writer.writeCharacters(" | getWitnesses:" +
-                // reading.getWitnesses().toString());
-                // }
-
-                // writer.writeEndElement(); // rdg
-
-                // // ANNOTATION FOR RELATION
-                // if (relationship.getAnnotation() != null &&
-                // !relationship.getAnnotation().isEmpty()) {
-                // writer.writeStartElement("note");
-                // writer.writeCharacters(relationship.getAnnotation());
-                // writer.writeEndElement(); // note
-                // }
-
-                // writer.writeEndElement(); // app
-
-                // }
-
-                // if (!relationship.getIs_hyperrelation()) {
-                // // GET STANDARD RELATION SOURCE NODE
-                // Node source = db.getNodeById(Long.parseLong(relationship.getSource()));
-                // ReadingModel sourceRM = new ReadingModel(source);
-
-                // // OPEN CRITICAL APPARATUS
-                // writer.writeStartElement("rdg"); // OPEN LEMMA/RDG
-                // writer.writeAttribute("xml:id", sourceRM.getId());
-
-                // // getWitnessList of rdg
-                // List<String> lem_wits = sourceRM.getWitnesses();
-                // ArrayList<String> sigList = new ArrayList<>();
-                // for (String l : lem_wits)
-                // sigList.add("#" + l);
-                // Collections.sort(sigList);
-                // String witnessList = String.join(" ", sigList);
-                // writer.writeAttribute("wit", witnessList);
-
-                // // getRank
-                // writer.writeAttribute("rank", Long.toString(sourceRM.getRank()));
-                // writer.writeCharacters(sourceRM.getText()); // write inner text
-
-                // writer.writeEndElement(); // rdg
-
-                // // GET STANDARD RELATION SOURCE NODE
-                // Node target = db.getNodeById(Long.parseLong(relationship.getTarget()));
-                // ReadingModel targetRM = new ReadingModel(target);
-
-                // // OPEN CRITICAL APPARATUS
-                // writer.writeStartElement("rdg"); // OPEN LEMMA/RDG
-                // writer.writeAttribute("xml:id", targetRM.getId());
-
-                // // getWitnessList of rdg
-                // List<String> target_wits = targetRM.getWitnesses();
-                // sigList = new ArrayList<>();
-                // for (String l : target_wits)
-                // sigList.add("#" + l);
-                // Collections.sort(sigList);
-                // witnessList = String.join(" ", sigList);
-                // writer.writeAttribute("wit", witnessList);
-
-                // // getRank
-                // writer.writeAttribute("rank", Long.toString(targetRM.getRank()));
-                // writer.writeCharacters(targetRM.getText()); // write inner text
-
-                // writer.writeEndElement(); // rdg
-                // writer.writeEndElement(); // app
-
+                // for (ComplexReadingModel crmm : complexReadingModels) {
+                // writer.writeEmptyElement("complex");
+                // writer.writeAttribute("xml:id", crmm.getId());
+                // for (ComplexReadingModel rmm : crmm.getComponents()) {
+                // writer.writeEmptyElement("reading");
+                // writer.writeAttribute("xml:id", rmm.getReading().getId());
+                // writer.writeAttribute("rank", Long.toString(rmm.getReading().getRank()));
+                // writer.writeAttribute("text", rmm.getReading().getText());
                 // }
                 // }
-
-                // writer.writeEndElement(); // relationshiplist
 
                 writer.writeStartElement("div");
                 writer.writeStartElement("p");
 
+                /*
+                 * Get all the nodes/variants (including nodes with no variants) of the section
+                 * as VariantListModel
+                 * For each node in the section:
+                 * Check if the node has variants and store them as a List<VariantLocationModel>
+                 * 
+                 * Build Hyperrelation
+                 * If the node has variants, build the critical apparatus
+                 * If the node is the start of a relationship
+                 * If the relationship is a hyperrelation, build the critical apparatus
+                 * for each reading in the first hypernode, build the rdg
+                 * If the relationship is a normal relation, build the critical apparatus
+                 * If the node has no variants, just write the reading
+                 * 
+                 * 
+                 */
                 VariantListModel vlm = new VariantListModel(
                         sectionNode, baseWitness, excWitnesses, conflate, suppressMatching,
                         !excludeNonsense.equals("no"), !excludeType1.equals("no"),
@@ -1150,115 +1375,136 @@ public class TabularExporter {
                             .filter(y -> y.getRankIndex().equals(readingModel.getRank()))
                             .collect(Collectors.toList());
 
+                    // writer.writeEmptyElement("reading");
+                    // writer.writeAttribute("xml:id", readingModel.getId());
+                    // writer.writeAttribute("rank", Long.toString(readingModel.getRank()));
+                    // writer.writeAttribute("text", readingModel.getText());
+
                     String readingId = readingModel.getId();
                     Boolean defined_by_manual_relation = false;
                     Boolean defined_by_hyperrelation = false;
+
                     for (RelationStruct relStruct : relStructList) {
 
+                        // HYPERELATION BETWEEN TWO HYPER READINGS
                         if (relStruct.relationModel.getIs_hyperrelation()
                                 && relStruct.relationModel.getTarget().equals(readingId)
                                 || relStruct.relationModel.getIs_hyperrelation()
-                                && relStruct.relationModel.getSource().equals(readingId)) {
-                            // writer.writeEmptyElement("hyper_relationship");
+                                        && relStruct.relationModel.getSource().equals(readingId)) {
+
                             defined_by_hyperrelation = true;
+                            defined_by_manual_relation = true;
 
-                            // writer.writeStartElement("debug_relationship");
-
-                            // /// DEBUG PURPOSES
-                            // writer.writeCharacters(Boolean.toString(relStruct.relationModel.getIs_hyperrelation()));
-                            // writer.writeCharacters(readingId);
-                            // writer.writeCharacters(" | source : " + relStruct.relationModel.getSource());
-                            // writer.writeCharacters(" | hsource : " +
-                            // relStruct.relationModel.getHSource());
-                            // writer.writeCharacters(" | target : " + relStruct.relationModel.getTarget());
-                            // writer.writeCharacters(" | htarget : " +
-                            // relStruct.relationModel.getHTarget());
-                            // writer.writeCharacters(" | type : " + relStruct.relationModel.getType());
-                            // writer.writeEndElement(); // app
-
-                            // OPEN group of rdgGrp
-                            // writer.writeStartElement("rdgGrp");
-
-                            // Critical Apparatus of an HYPER-RELATION
+                            // Open the apparatus of the hyper-relation
                             writer.writeStartElement("app");
-                            writer.writeAttribute("cause", relStruct.relationModel.getType());
-                            writer.writeAttribute("xml:id", relStruct.relationModel.getId());
 
-                            writer.writeStartElement("annotation");
-                            writer.writeAttribute("motivation", "assesing");
-                            writer.writeAttribute("target", relStruct.relationModel.getId());
-                            writer.writeCharacters(relStruct.relationModel.getAnnotation());
-                            writer.writeEndElement(); // annotation
+                            // If the hyper-relation has an annotation, add it to the apparatus
+                            if (relStruct.relationModel.getAnnotation() != null
+                                    && !relStruct.relationModel.getAnnotation().isEmpty()) {
 
-                            // Rdg of the SOURCE HYPERNODE
-                            writer.writeStartElement("rdgGrp");
-                            writer.writeAttribute("xml:id", relStruct.hSource.getId());
+                                writer.writeStartElement("note");
+                                writer.writeCharacters(relStruct.relationModel.getAnnotation());
+                                writer.writeEndElement(); // annotation
+                            }
+
+                            // POLARISATION : Find wich of the hypernodes has been polarised so we can print
+                            // the lemma first and the variant second
+                            boolean a_is_lemma = relStruct.relationModel.getA_derivable_from_b();
+                            boolean b_is_lemma = relStruct.relationModel.getB_derivable_from_a();
+                            ComplexReadingModel crm_lemma = null;
+                            ComplexReadingModel crm_variant = null;
+
+                            // If the relationship has been polarized, print the lemma first
+                            if (a_is_lemma == true || b_is_lemma == true) {
+                                crm_lemma = a_is_lemma ? relStruct.hSource : relStruct.hTarget;
+                                crm_variant = a_is_lemma ? relStruct.hTarget : relStruct.hSource;
+                            }
+
+                            // If the relationship has not been polarized, keep arrival order
+                            if (a_is_lemma == false && b_is_lemma == false) {
+                                crm_lemma = relStruct.hSource;
+                                crm_variant = relStruct.hTarget;
+                            }
+
+                            // LEMMATIC HYPERNODE (?) OF FIRST ARRIVED HYPERNODE
+                            writer.writeStartElement("lem");
+                            writer.writeAttribute("xml:id", crm_lemma.getId());
 
                             List<String> sigList = new ArrayList<>();
-                            for (ReadingModel rm : relStruct.hTargetReadings) {
+                            for (ComplexReadingModel crm_component : crm_lemma.getComponents()) {
                                 // for each rm get the witnesses and add them to the attribute wit
                                 // avoiding duplicates
+                                ReadingModel rm = crm_component.getReading();
                                 List<String> wits = rm.getWitnesses();
+                                Set<String> sigSet = new HashSet<>();
                                 for (String l : wits)
-                                    sigList.add("#" + l);
+                                    sigSet.add("#" + l);
                             }
+
                             sigList = sigList.stream().distinct().collect(Collectors.toList());
                             Collections.sort(sigList);
                             String witnessList = String.join(" ", sigList);
                             writer.writeAttribute("wit", witnessList);
 
-                            for (ReadingModel rm : relStruct.hSourceReadings) {
-                                // print the rdg of each reading model
-                                writer.writeStartElement("rdg");
-                                writer.writeAttribute("xml:id", rm.getId());
-                                List<String> wits = rm.getWitnesses();
-                                sigList = new ArrayList<>();
-                                for (String l : wits)
-                                    sigList.add("#" + l);
-                                Collections.sort(sigList);
-                                witnessList = String.join(" ", sigList);
-                                writer.writeAttribute("wit", witnessList);
-                                writer.writeAttribute("rank", Long.toString(rm.getRank()));
-                                writer.writeCharacters(rm.getText());
-                                writer.writeEndElement(); // rdg
-                            }
-                            writer.writeEndElement();
+                            for (ComplexReadingModel crm_component : crm_lemma.getComponents()) {
 
+                                ReadingModel rm = crm_component.getReading();
+                                List<VariantLocationModel> rm_variantLocationFound = vlm.getVariantlist().stream()
+                                        .filter(y -> y.getRankIndex().equals(rm.getRank()))
+                                        .collect(Collectors.toList());
+
+                                if (!rm_variantLocationFound.isEmpty()) {
+
+                                    processVariantsApparatus(rm, rm_variantLocationFound, writer);
+
+                                } else {
+                                    writer.writeCharacters(rm.getText());
+                                }
+                                writer.writeCharacters(" ");
+                            }
+                            writer.writeEndElement(); // lemmatic hypernode of first arrived hypernode
+
+                            // VARIANT HYPERNODE (?) OF SECOND ARRIVED HYPERNODE
                             writer.writeStartElement("rdg");
-                            writer.writeAttribute("xml:id", relStruct.hTarget.getId());
+                            writer.writeAttribute("xml:id", crm_variant.getId());
 
                             sigList = new ArrayList<>();
-                            for (ReadingModel rm : relStruct.hTargetReadings) {
+                            for (ComplexReadingModel crm : crm_variant.getComponents()) {
+                                // for each rm get the witnesses and add them to the attribute wit
+                                // avoiding duplicates
+                                ReadingModel rm = crm.getReading();
                                 List<String> wits = rm.getWitnesses();
+                                Set<String> sigSet = new HashSet<>();
                                 for (String l : wits)
-                                    sigList.add("#" + l);
+                                    sigSet.add("#" + l);
                             }
+                            // to list
                             sigList = sigList.stream().distinct().collect(Collectors.toList());
                             Collections.sort(sigList);
                             witnessList = String.join(" ", sigList);
                             writer.writeAttribute("wit", witnessList);
-                            writer.writeAttribute("rank", Long.toString(relStruct.targetNode.getRank()));
 
-                            for (ReadingModel rm : relStruct.hTargetReadings) {
-                                // print the rdg of each reading model
-                                writer.writeStartElement("rdg");
-                                writer.writeAttribute("xml:id", rm.getId());
-                                List<String> wits = rm.getWitnesses();
-                                sigList = new ArrayList<>();
-                                for (String l : wits)
-                                    sigList.add("#" + l);
-                                Collections.sort(sigList);
-                                witnessList = String.join(" ", sigList);
-                                writer.writeAttribute("wit", witnessList);
-                                writer.writeAttribute("rank", Long.toString(rm.getRank()));
-                                writer.writeCharacters(rm.getText());
-                                writer.writeEndElement(); // rdg
+                            for (ComplexReadingModel crm : crm_variant.getComponents()) {
+
+                                ReadingModel rm = crm.getReading();
+                                List<VariantLocationModel> rm_variantLocationFound = vlm.getVariantlist().stream()
+                                        .filter(y -> y.getRankIndex().equals(rm.getRank()))
+                                        .collect(Collectors.toList());
+
+                                if (!rm_variantLocationFound.isEmpty()) {
+
+                                    processVariantsApparatus(rm, rm_variantLocationFound, writer);
+
+                                } else {
+                                    writer.writeCharacters(rm.getText());
+                                }
+
+                                writer.writeCharacters(" ");
                             }
-                            writer.writeEndElement(); // hypernode target readings
+                            writer.writeEndElement(); // hyper-reading
 
-                            writer.writeEndElement(); // app
+                            writer.writeEndElement(); // app of rel between two hyper-readings
 
-                            // writer.writeEndElement(); // rdgGrp
                         }
 
                         // if is not a hyperrelation it means it is a standard relation
@@ -1270,7 +1516,18 @@ public class TabularExporter {
                         if (!relStruct.relationModel.getIs_hyperrelation()
                                 && relStruct.relationModel.getTarget().equals(readingId)
                                 || !relStruct.relationModel.getIs_hyperrelation()
-                                && relStruct.relationModel.getSource().equals(readingId)){
+                                        && relStruct.relationModel.getSource().equals(readingId)) {
+
+                            if (relStruct.relationModel.getAnnotation() != null
+                                    && !relStruct.relationModel.getAnnotation().isEmpty()) {
+
+                                writer.writeStartElement("note");
+                                // writer.writeAttribute("motivation", "assesing");
+                                // writer.writeAttribute("target", relStruct.relationModel.getId());
+                                writer.writeCharacters(relStruct.relationModel.getAnnotation());
+                                writer.writeEndElement(); // annotation
+                            }
+
                             writer.writeStartElement("app"); // app
 
                             // writer.writeEmptyElement("normal_relationship");
@@ -1279,26 +1536,9 @@ public class TabularExporter {
                             writer.writeAttribute("xml:id", relStruct.relationModel.getId());
                             writer.writeAttribute("cause", relStruct.relationModel.getType());
 
-                            writer.writeStartElement("annotation");
-                            writer.writeAttribute("motivation", "assesing");
-                            writer.writeAttribute("target", relStruct.relationModel.getId());
-                            writer.writeCharacters(relStruct.relationModel.getAnnotation());
-                            writer.writeEndElement(); // annotation
-
                             // writer.writeStartElement("debug_relationship");
 
                             // /// DEBUG PURPOSES
-                            // writer.writeCharacters(Boolean.toString(relStruct.relationModel.getIs_hyperrelation()));
-                            // writer.writeCharacters(readingId);
-                            // writer.writeCharacters(" | source : " + relStruct.relationModel.getSource());
-                            // writer.writeCharacters(" | hsource : " +
-                            // relStruct.relationModel.getHSource());
-                            // writer.writeCharacters(" | target : " + relStruct.relationModel.getTarget());
-                            // writer.writeCharacters(" | htarget : " +
-                            // relStruct.relationModel.getHTarget());
-                            // writer.writeCharacters(" | type : " + relStruct.relationModel.getType());
-                            // writer.writeEndElement(); // app
-
                             writer.writeStartElement("lem");
                             writer.writeAttribute("xml:id", relStruct.sourceNode.getId());
                             List<String> wits = relStruct.sourceNode.getWitnesses();
@@ -1334,79 +1574,23 @@ public class TabularExporter {
                     // If the reading has variants,
                     // ans is not a standard manual relationship
                     // build up the critical apparatus.
-
                     if (!variantLocationFound.isEmpty() && !defined_by_manual_relation) {
-                        try {
-                            // OPEN CRITICAL APPARATUS
-                            writer.writeStartElement("app");
-                            writer.writeStartElement("lem"); // OPEN LEMMA
-                            writer.writeAttribute("xml:id", readingModel.getId());
 
-                            // getWitnessList of lemma
-                            List<String> lem_wits = readingModel.getWitnesses();
-                            ArrayList<String> sigList = new ArrayList<>();
-                            for (String l : lem_wits)
-                                sigList.add("#" + l);
-                            Collections.sort(sigList);
-                            String witnessList = String.join(" ", sigList);
-                            writer.writeAttribute("wit", witnessList);
-
-                            // getRank
-                            writer.writeAttribute("rank", Long.toString(readingModel.getRank()));
-
-                            writer.writeCharacters(readingModel.getText()); // write inner text
-
-                            writer.writeEndElement(); // lem
-
-                            VariantLocationModel vloc = variantLocationFound.get(0);
-                            for (VariantModel vm : vloc.getVariants()) {
-
-                                writer.writeStartElement("rdg");
-
-                                if (vm.getReadings().size() > 0) {
-                                    writer.writeAttribute("xml:id", vm.getReadings().get(0).getId());
-                                }
-
-                                // getWitnessList
-                                Map<String, List<String>> wits = vm.getWitnesses();
-                                ArrayList<String> variantSigList = new ArrayList<>();
-                                for (String l : wits.keySet())
-                                    for (String s : wits.get(l))
-                                        variantSigList.add(
-                                                l.equals("witnesses") ? "#" + s
-                                                        : "#" + String.format("%s (%s)", s, l));
-                                Collections.sort(variantSigList);
-                                String variantWitnessList = String.join(" ", variantSigList);
-                                writer.writeAttribute("wit", variantWitnessList);
-
-                                // getRanksList
-                                // Empty nodes have no rank and make the export fail
-                                if (vm.getReadings().size() > 0) {
-
-                                    String variantRank = Long.toString(vm.getReadings().get(0).getRank());
-                                    writer.writeAttribute("rank", variantRank);
-                                }
-
-                                String varText = ReadingService.textOfReadings(vm.getReadings(),
-                                        vloc.isNormalised(),
-                                        false);
-                                writer.writeCharacters(varText);
-                                writer.writeEndElement(); // rdg
-                            }
-                            writer.writeEndElement(); // app
-                            writer.writeCharacters(" ");
-
-                        } catch (XMLStreamException e) {
-                            e.printStackTrace();
-                        }
+                        processVariantsApparatus(readingModel, variantLocationFound, writer);
 
                     }
                     // If the reading has no variants, just write it out
                     else {
                         try {
-                            if (!defined_by_hyperrelation && !defined_by_manual_relation) {
 
-                                if (!readingModel.getText().equals("#START#") && !readingModel.getText().equals("#END#")) {
+                            if (!defined_by_hyperrelation &&
+                                    !defined_by_manual_relation
+                            // && null != complexReadingModels.stream().filter(x ->
+                            // x.getReading().getId().equals(readingId))
+                            ) {
+
+                                if (!readingModel.getText().equals("#START#")
+                                        && !readingModel.getText().equals("#END#")) {
 
                                     writer.writeCharacters(readingModel.getText() + " ");
 
@@ -1432,15 +1616,289 @@ public class TabularExporter {
             writer.flush();
 
             return Response.ok(
-                    new String(result.toString().getBytes(), StandardCharsets.UTF_8)
-
-                    , MediaType.APPLICATION_XML).build();
+                    new String(result.toString().getBytes(), StandardCharsets.UTF_8), MediaType.APPLICATION_XML)
+                    .build();
             // MediaType.APPLICATION_JSON_TYPE).build()
         } catch (Exception e) {
             e.printStackTrace();
             return Response.serverError().entity(e.getMessage()).build();
         }
 
+    }
+
+    void processHyperRelationShip(RelationStruct relStruct, VariantListModel vlm, XMLStreamWriter writer) {
+        try {
+
+            // Apparatus of the hyper relationship
+            writer.writeStartElement("app"); // app
+            writer.writeAttribute("xml:id", relStruct.relationModel.getId());
+            writer.writeAttribute("cause", relStruct.relationModel.getType());
+
+            writer.writeEmptyElement("relstruct");
+            writer.writeAttribute("xml:id", relStruct.relationModel.getId());
+            writer.writeAttribute("source", relStruct.relationModel.getSource());
+            writer.writeAttribute("target", relStruct.relationModel.getTarget());
+            writer.writeAttribute("hypernodeSource", relStruct.relationModel.getHSource());
+            writer.writeAttribute("hypernodeTarget", relStruct.relationModel.getHTarget());
+            writer.writeAttribute("type", relStruct.relationModel.getType());
+            writer.writeAttribute("is_hyperrelation", Boolean.toString(relStruct.relationModel.getIs_hyperrelation()));
+
+            writer.writeEmptyElement("listsLengths");
+            writer.writeAttribute("sourceLength", Integer.toString(relStruct.hSourceReadings.size()));
+            writer.writeAttribute("targetLength", Integer.toString(relStruct.hTargetReadings.size()));
+            writer.writeAttribute("vlmLength", Integer.toString(vlm.getVariantlist().size()));
+
+
+            for (ComplexReadingModel crm : relStruct.hSource.getComponents()) {
+
+                ReadingModel rm = crm.getReading();
+                writer.writeEmptyElement("reading");
+                writer.writeAttribute("xml:id", rm.getId());
+                writer.writeAttribute("rank", Long.toString(rm.getRank()));
+                writer.writeAttribute("text", rm.getText());
+
+            }
+
+            for (ComplexReadingModel crm : relStruct.hTarget.getComponents()) {
+                    
+                    ReadingModel rm = crm.getReading();
+                    writer.writeEmptyElement("reading");
+                    writer.writeAttribute("xml:id", rm.getId());
+                    writer.writeAttribute("rank", Long.toString(rm.getRank()));
+                    writer.writeAttribute("text", rm.getText());    
+            }
+
+
+
+            // POLARISATION : Find wich of the hypernodes has been polarised so we can print
+            // the lemma first and the variant second
+            boolean a_is_lemma = relStruct.relationModel.getA_derivable_from_b();
+            boolean b_is_lemma = relStruct.relationModel.getB_derivable_from_a();
+            ComplexReadingModel crm_lemma = null;
+            ComplexReadingModel crm_variant = null;
+            List<ReadingModel> crm_lemma_readings = null;
+            List<ReadingModel> crm_variant_readings = null;
+
+            // If the relationship has been polarized, print the lemma first
+            if (a_is_lemma == true || b_is_lemma == true) {
+                crm_lemma = a_is_lemma ? relStruct.hSource : relStruct.hTarget;
+                crm_variant = a_is_lemma ? relStruct.hTarget : relStruct.hSource;
+                crm_lemma_readings = a_is_lemma ? relStruct.hSourceReadings : relStruct.hTargetReadings;
+                crm_variant_readings = a_is_lemma ? relStruct.hTargetReadings : relStruct.hSourceReadings;
+            }
+
+            // If the relationship has not been polarized, keep arrival order
+            if (a_is_lemma == false && b_is_lemma == false) {
+                crm_lemma = relStruct.hSource;
+                crm_variant = relStruct.hTarget;
+                crm_lemma_readings = relStruct.hSourceReadings;
+                crm_variant_readings = relStruct.hTargetReadings;
+            }
+
+            // LEMMATIC HYPERNODE (?) OF FIRST ARRIVED HYPERNODE
+            writer.writeStartElement("lem");
+            writer.writeAttribute("xml:id", crm_lemma.getId());
+
+            // List<String> sigList = new ArrayList<>();
+            // for (ComplexReadingModel crm_component : crm_lemma.getComponents()) {
+            // // for each rm get the witnesses and add them to the attribute wit
+            // // avoiding duplicates
+            // ReadingModel rm = crm_component.getReading();
+            // List<String> wits = rm.getWitnesses();
+            // Set<String> sigSet = new HashSet<>();
+            // for (String l : wits)
+            // sigSet.add("#" + l);
+            // }
+
+            // sigList = sigList.stream().distinct().collect(Collectors.toList());
+            // Collections.sort(sigList);
+            // String witnessList = String.join(" ", sigList);
+            // writer.writeAttribute("wit", witnessList);
+
+            for (ComplexReadingModel crm : relStruct.hSource.getComponents()) {
+
+                ReadingModel rm = crm.getReading();
+
+                List<VariantLocationModel> rm_variantLocationFound = vlm.getVariantlist().stream()
+                        .filter(y -> y.getRankIndex().equals(rm.getRank()))
+                        .collect(Collectors.toList());
+
+                if (!rm_variantLocationFound.isEmpty()) {
+
+                    processVariantsApparatus(rm, rm_variantLocationFound, writer);
+
+                } else {
+                    writer.writeCharacters(rm.getText());
+                }
+                writer.writeCharacters(" ");
+            }
+
+            writer.writeEndElement(); // lemmatic hypernode of first arrived hypernode
+
+            // VARIANT HYPERNODE (?) OF SECOND ARRIVED HYPERNODE
+            writer.writeStartElement("rdg");
+            writer.writeAttribute("xml:id", crm_variant.getId());
+
+            for (ComplexReadingModel crm : relStruct.hTarget.getComponents()) {
+
+                ReadingModel rm = crm.getReading();
+                List<VariantLocationModel> rm_variantLocationFound = vlm.getVariantlist().stream()
+                        .filter(y -> y.getRankIndex().equals(rm.getRank()))
+                        .collect(Collectors.toList());
+
+                if (!rm_variantLocationFound.isEmpty()) {
+
+                    processVariantsApparatus(rm, rm_variantLocationFound, writer);
+
+                } else {
+                    writer.writeCharacters(rm.getText());
+                }
+                writer.writeCharacters(" ");
+            }
+
+            writer.writeEndElement(); // hyper-reading
+
+            writer.writeEndElement(); // app of rel between two hyper-readings
+
+
+        } catch (XMLStreamException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /*
+     * Process a standard relationship (set manually via ui) between two readings
+     * 
+     * @param relStruct the relation struct containing the two readings
+     * 
+     * @param writer the xml writer
+     */
+    void processStandardRelationShip(RelationStruct relStruct, XMLStreamWriter writer) {
+        try {
+
+            // Apparatus of the manual standard relationship
+            writer.writeStartElement("app"); // app
+            writer.writeAttribute("xml:id", relStruct.relationModel.getId());
+            writer.writeAttribute("cause", relStruct.relationModel.getType());
+
+            // POLARISATION : Find wich of the hypernodes has been polarised so we can print
+            // the lemma first and the variant second
+            boolean a_is_lemma = relStruct.relationModel.getA_derivable_from_b();
+            boolean b_is_lemma = relStruct.relationModel.getB_derivable_from_a();
+            ReadingModel rm_lemma = null;
+            ReadingModel rm_variant = null;
+
+            // If the relationship has been polarized, print the lemma first
+            if (a_is_lemma == true || b_is_lemma == true) {
+                rm_lemma = a_is_lemma ? relStruct.sourceNode : relStruct.targetNode;
+                rm_variant = a_is_lemma ? relStruct.targetNode : relStruct.sourceNode;
+            }
+
+            // If the relationship has not been polarized, keep arrival order
+            if (a_is_lemma == false && b_is_lemma == false) {
+                rm_lemma = relStruct.sourceNode;
+                rm_variant = relStruct.targetNode;
+            }
+
+            writer.writeStartElement("lem");
+            writer.writeAttribute("xml:id", rm_lemma.getId());
+            List<String> wits = rm_lemma.getWitnesses();
+            ArrayList<String> sigList = new ArrayList<>();
+            for (String l : wits)
+                sigList.add("#" + l);
+            Collections.sort(sigList);
+            String witnessList = String.join(" ", sigList);
+            writer.writeAttribute("wit", witnessList);
+            writer.writeAttribute("rank", Long.toString(rm_lemma.getRank()));
+            writer.writeCharacters(rm_lemma.getText());
+            writer.writeEndElement(); // lem
+
+            writer.writeStartElement("rdg");
+            writer.writeAttribute("xml:id", rm_variant.getId());
+            wits = rm_variant.getWitnesses();
+            sigList = new ArrayList<>();
+            for (String l : wits)
+                sigList.add("#" + l);
+            Collections.sort(sigList);
+            witnessList = String.join(" ", sigList);
+            writer.writeAttribute("wit", witnessList);
+            writer.writeAttribute("rank", Long.toString(rm_variant.getRank()));
+            writer.writeCharacters(rm_variant.getText());
+            writer.writeEndElement(); // rdg
+
+            writer.writeEndElement(); // app
+
+        } catch (XMLStreamException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void processVariantsApparatus(ReadingModel readingModel, List<VariantLocationModel> variantLocationFound,
+            XMLStreamWriter writer) {
+        try {
+
+            // OPEN CRITICAL APPARATUS
+            writer.writeStartElement("app");
+            writer.writeStartElement("lem"); // OPEN LEMMA
+            writer.writeAttribute("xml:id", readingModel.getId());
+
+            // getWitnessList of lemma
+            List<String> lem_wits = readingModel.getWitnesses();
+            ArrayList<String> sigList = new ArrayList<>();
+            for (String l : lem_wits)
+                sigList.add("#" + l);
+            Collections.sort(sigList);
+            String witnessList = String.join(" ", sigList);
+            writer.writeAttribute("wit", witnessList);
+
+            // getRank
+            writer.writeAttribute("rank", Long.toString(readingModel.getRank()));
+
+            writer.writeCharacters(readingModel.getText()); // write inner text
+
+            writer.writeEndElement(); // lem
+
+            VariantLocationModel vloc = variantLocationFound.get(0);
+            for (VariantModel vm : vloc.getVariants()) {
+
+                writer.writeStartElement("rdg");
+
+                if (vm.getReadings().size() > 0) {
+                    writer.writeAttribute("xml:id", vm.getReadings().get(0).getId());
+                }
+
+                // getWitnessList
+                Map<String, List<String>> wits = vm.getWitnesses();
+                ArrayList<String> variantSigList = new ArrayList<>();
+                for (String l : wits.keySet())
+                    for (String s : wits.get(l))
+                        variantSigList.add(
+                                l.equals("witnesses") ? "#" + s
+                                        : "#" + String.format("%s (%s)", s, l));
+                Collections.sort(variantSigList);
+                String variantWitnessList = String.join(" ", variantSigList);
+                writer.writeAttribute("wit", variantWitnessList);
+
+                // getRanksList
+                // Empty nodes have no rank and make the export fail
+                if (vm.getReadings().size() > 0) {
+
+                    String variantRank = Long.toString(vm.getReadings().get(0).getRank());
+                    writer.writeAttribute("rank", variantRank);
+                }
+
+                String varText = ReadingService.textOfReadings(vm.getReadings(),
+                        vloc.isNormalised(),
+                        false);
+                writer.writeCharacters(varText);
+                writer.writeEndElement(); // rdg
+            }
+            writer.writeEndElement(); // app
+            writer.writeCharacters(" ");
+
+        } catch (XMLStreamException e) {
+            e.printStackTrace();
+        }
     }
 
     private static class TabularExporterException extends Exception {
