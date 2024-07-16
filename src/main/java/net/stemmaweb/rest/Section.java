@@ -1649,6 +1649,85 @@ public class Section {
              excludeNonsense, combine, suppressMatching, baseWitness, conflate, excWitnesses, "true".equals(excludeLayers));
     }
 
+            /**
+     * Returns a TEI Critical Apparatus formatted XML file that contains the base text and the variants.
+     *
+     * @summary Download a TEI Critical Apparatus XML file
+     *
+     * @param significant - Restrict the variant groups to the given significance level or above
+     * @param excludeType1 - If true, exclude type 1 (i.e. singleton) variants from the groupings
+     * @param combine - If true, attempt to combine non-colocated variants (e.g. transpositions) into
+     *                the VariantLocationModel of the corresponding base
+     * @param suppressMatching - A regular expression to match readings that should be disregarded in the
+     *                 variant list. Defaults to punctuation-only readings.
+     * @param excludeNonsense - Whether
+     * @param baseWitness  - Use the path of the given witness as the base path.
+     * @param conflate - The name of relations that should be used for normalization
+     * @param excWitnesses - One or more witnesses that should be excluded from the variant list
+     * @param excludeLayers - If "true", exclude witness layers from the output.
+     * @return the TEI Critical Apparatus  as plaintext
+     */
+    @GET
+    @Path("/teicat3")
+    @Produces("application/xml; charset=utf-8")
+    @ReturnType("java.lang.Void")
+    public Response getTeicat3(@DefaultValue("no") @QueryParam("significant") String significant,
+                             @DefaultValue("no") @QueryParam("exclude_type1") String excludeType1,
+                             @DefaultValue("no") @QueryParam("exclude_nonsense") String excludeNonsense,
+                             @DefaultValue("no") @QueryParam("combine_dislocations") String combine,
+                             @DefaultValue("punct") @QueryParam("suppress_matching") String suppressMatching,
+                             @QueryParam("base_witness") String baseWitness,
+                             @QueryParam("normalize") List<String> conflate,
+                             @QueryParam("exclude_witness") List<String> excWitnesses,
+                             @QueryParam("exclude_layers") String excludeLayers) {
+
+       if (!sectionInTradition())
+           return Response.status(Response.Status.NOT_FOUND).entity("Tradition and/or section not found").build();
+
+       List<String> thisSection = new ArrayList<>(Collections.singletonList(sectId));
+       return new TabularExporter(db).exportAsTEICat3(tradId, thisSection, significant, excludeType1,
+             excludeNonsense, combine, suppressMatching, baseWitness, conflate, excWitnesses, "true".equals(excludeLayers));
+    }
+
+            /**
+     * Returns a TEI Critical Apparatus formatted XML file that contains the base text and the variants.
+     *
+     * @summary Download a TEI Critical Apparatus XML file
+     *
+     * @param significant - Restrict the variant groups to the given significance level or above
+     * @param excludeType1 - If true, exclude type 1 (i.e. singleton) variants from the groupings
+     * @param combine - If true, attempt to combine non-colocated variants (e.g. transpositions) into
+     *                the VariantLocationModel of the corresponding base
+     * @param suppressMatching - A regular expression to match readings that should be disregarded in the
+     *                 variant list. Defaults to punctuation-only readings.
+     * @param excludeNonsense - Whether
+     * @param baseWitness  - Use the path of the given witness as the base path.
+     * @param conflate - The name of relations that should be used for normalization
+     * @param excWitnesses - One or more witnesses that should be excluded from the variant list
+     * @param excludeLayers - If "true", exclude witness layers from the output.
+     * @return the TEI Critical Apparatus  as plaintext
+     */
+    @GET
+    @Path("/teicat4")
+    @Produces("application/xml; charset=utf-8")
+    @ReturnType("java.lang.Void")
+    public Response getTeicat4(@DefaultValue("no") @QueryParam("significant") String significant,
+                             @DefaultValue("no") @QueryParam("exclude_type1") String excludeType1,
+                             @DefaultValue("no") @QueryParam("exclude_nonsense") String excludeNonsense,
+                             @DefaultValue("no") @QueryParam("combine_dislocations") String combine,
+                             @DefaultValue("punct") @QueryParam("suppress_matching") String suppressMatching,
+                             @QueryParam("base_witness") String baseWitness,
+                             @QueryParam("normalize") List<String> conflate,
+                             @QueryParam("exclude_witness") List<String> excWitnesses,
+                             @QueryParam("exclude_layers") String excludeLayers) {
+
+       if (!sectionInTradition())
+           return Response.status(Response.Status.NOT_FOUND).entity("Tradition and/or section not found").build();
+
+       List<String> thisSection = new ArrayList<>(Collections.singletonList(sectId));
+       return new TabularExporter(db).exportAsTEICat4(tradId, thisSection, significant, excludeType1,
+             excludeNonsense, combine, suppressMatching, baseWitness, conflate, excWitnesses, "true".equals(excludeLayers));
+    }
 
     @GET
     @Path("/translation")

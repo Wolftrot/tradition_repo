@@ -21,6 +21,7 @@ import net.stemmaweb.model.VariantLocationModel;
 import net.stemmaweb.services.ReadingService;
 import net.stemmaweb.services.VariantGraphService;
 
+import org.apache.commons.math3.complex.Complex;
 import org.checkerframework.checker.units.qual.h;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
@@ -934,6 +935,8 @@ public class TabularExporter {
                     // IF THERE IS HSOURCE AND HTARGET
                     if (rel.getHSource() != null && !rel.getHSource().isEmpty() && rel.getHTarget() != null
                             && !rel.getHTarget().isEmpty()) {
+
+                        // TODO NODE CASTING IS RETURNING PARTIAL OBJECT WITH NO PROPS
                         Node hSource = db.getNodeById(Long.parseLong(rel.getHSource()));
                         Node hTarget = db.getNodeById(Long.parseLong(rel.getHTarget()));
                         relStruct.hSource = new ComplexReadingModel(hSource);
@@ -943,10 +946,26 @@ public class TabularExporter {
                                 .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
                                 .map(x -> x.getReading())
                                 .collect(Collectors.toList());
-                        relStruct.hTargetReadings = relStruct.hTarget.getComponents().stream()
-                                .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
-                                .map(x -> x.getReading())
-                                .collect(Collectors.toList());
+
+                        Set<Node> hyperNodes = VariantGraphService.returnTraditionSection(startNode).nodes().stream()
+                                .filter(x -> x.hasLabel(Label.label("HYPERREADING"))).collect(Collectors.toSet());
+                        for (Node hyperNode : hyperNodes) {
+                            ComplexReadingModel crm = new ComplexReadingModel(hyperNode);
+                            if (crm.getId().equals(rel.getHSource())) {
+                                relStruct.hSource = crm;
+                                relStruct.hSourceReadings = crm.getComponents().stream()
+                                        .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                        .map(x -> x.getReading())
+                                        .collect(Collectors.toList());
+                            }
+                            if (crm.getId().equals(rel.getHTarget())) {
+                                relStruct.hTarget = crm;
+                                relStruct.hTargetReadings = crm.getComponents().stream()
+                                        .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                        .map(x -> x.getReading())
+                                        .collect(Collectors.toList());
+                            }
+                        }
                     }
 
                     Node source = db.getNodeById(Long.parseLong(rel.getSource()));
@@ -958,11 +977,72 @@ public class TabularExporter {
 
                 }
 
+                for (RelationStruct rs : relStructList) {
+                    try {
+                        if (rs.hSource != null && rs.hTarget != null) {
+                            writer.writeEmptyElement("relstruct");
+                            writer.writeAttribute("source", rs.sourceNode.getId());
+                            writer.writeAttribute("target", rs.targetNode.getId());
+                            if (rs.hSource != null)
+                                writer.writeAttribute("hsource", rs.hSource.getId());
+                            if (rs.hTarget != null)
+                                writer.writeAttribute("htarget", rs.hTarget.getId());
+
+                            if (rs.hSourceReadings != null && !rs.hSourceReadings.isEmpty()) {
+
+                                String hsourceReadings = rs.hSourceReadings.stream()
+                                        .sorted(java.util.Comparator.comparing(ReadingModel::getRank))
+                                        .map(ReadingModel::getText)
+                                        .collect(Collectors.joining(" "));
+                                writer.writeAttribute("hsourceReadings", hsourceReadings);
+
+                            }
+
+                            if (rs.hTargetReadings != null && !rs.hTargetReadings.isEmpty()) {
+                                String htargetreadings = rs.hTargetReadings.stream()
+                                        .sorted(java.util.Comparator.comparing(ReadingModel::getRank))
+                                        .map(ReadingModel::getText)
+                                        .collect(Collectors.joining(" "));
+                                writer.writeAttribute("htargetreadingsrank", htargetreadings);
+
+                            }
+                        } else {
+                            // DONT PRINT RELATION IF NOT HYPERRELATION
+                            // they are expressed as cause in <app>
+
+                        }
+
+                    } catch (XMLStreamException e) {
+                        e.printStackTrace();
+                    }
+                }
+
                 ArrayList<ComplexReadingModel> complexReadingModels = new ArrayList<>();
                 Set<Node> sectionNodes = VariantGraphService.returnTraditionSection(startNode).nodes().stream()
-                    .filter(x -> x.hasLabel(Label.label("HYPERREADING"))).collect(Collectors.toSet());
+                        .filter(x -> x.hasLabel(Label.label("HYPERREADING"))).collect(Collectors.toSet());
                 sectionNodes.forEach(x -> complexReadingModels.add(new ComplexReadingModel(x)));
                 tx.success();
+
+                for (ComplexReadingModel crm : complexReadingModels) {
+                    try {
+                        writer.writeEmptyElement("complexreading");
+                        writer.writeAttribute("id", crm.getId());
+                        // writer.writeAttribute("source", crm.getSource()); // IS A COMMENT
+                        if (crm.getComponents() != null && !crm.getComponents().isEmpty()) {
+
+                            List<ReadingModel> rmsSorted = crm.getComponents().stream()
+                                        .sorted(java.util.Comparator.comparing(x -> x.getReading().getRank()))
+                                        .map(x -> x.getReading())
+                                        .collect(Collectors.toList());
+
+
+                            writer.writeAttribute("components", rmsSorted.stream()
+                                    .map(x -> x.getId()).collect(Collectors.joining(" ")));
+                        }
+                    } catch (XMLStreamException e) {
+                        e.printStackTrace();
+                    }
+                }
 
                 writer.writeStartElement("div");
                 writer.writeStartElement("p");
@@ -999,11 +1079,11 @@ public class TabularExporter {
 
                     for (RelationStruct relStruct : relStructList) {
 
-                        if (relStruct.hSource != null && relStruct.hTarget != null) {
+                        if ((relStruct.sourceNode.getId().equals(readingId)
+                                || relStruct.targetNode.getId().equals(readingId))
+                                && (relStruct.hSource != null || relStruct.hTarget != null)) {
 
-                            if (relStruct.hSource.getId().equals(readingId)
-                                    || relStruct.hTarget.getId().equals(readingId)) {
-
+                            try {
                                 if (relStruct.relationModel.getAnnotation() != null
                                         && !relStruct.relationModel.getAnnotation().isEmpty()) {
 
@@ -1019,86 +1099,119 @@ public class TabularExporter {
 
                                 // processHyperRelationShip(relStruct, vlm, writer);
 
-                                //first hypernode
+                                // first hypernode
                                 writer.writeStartElement("app");
                                 writer.writeStartElement("lem");
-                                writer.writeAttribute("xml:id", relStruct.hSource.getId());
-                                
-                                for (ReadingModel reading : relStruct.hSourceReadings) {
-                                    
-                                    // check for reading variants 
-                                    List<VariantLocationModel> variantLocationFoundHyper = vlm.getVariantlist().stream()
-                                            .filter(y -> y.getRankIndex().equals(reading.getRank()))
-                                            .collect(Collectors.toList());
+                                // writer.writeAttribute("xml:id", relStruct.hSource.getId());
 
-                                    if (!variantLocationFoundHyper.isEmpty()) {
-                                            
-                                            processVariantsApparatus(reading, variantLocationFoundHyper, writer);
-    
-                                    }
-                                    // If the reading has no variants, just write it out
-                                    if (variantLocationFoundHyper.isEmpty()) {
+                                writer.writeEmptyElement("writehyperlemmacomponents");
+                                List<ReadingModel> lrm = new ArrayList<>();
+                                lrm = relStruct.hSourceReadings.stream()
+                                        .sorted(java.util.Comparator.comparing(ReadingModel::getRank))
+                                        .collect(Collectors.toList());
+                                for (ReadingModel rm : lrm) {
+                                    writer.writeCharacters(rm.getText() + " ");
 
-                                        if (!reading.getText().equals("#START#")
-                                                && !reading.getText().equals("#END#")) {
+                                    // // check for reading variants
+                                    // List<VariantLocationModel> variantLocationFoundHyper =
+                                    // vlm.getVariantlist().stream()
+                                    // .filter(y -> y.getRankIndex().equals(reading.getRank()))
+                                    // .collect(Collectors.toList());
 
-                                            try {
-                                                writer.writeCharacters(reading.getText() + " ");
-                                            } catch (XMLStreamException e) {
-                                                e.printStackTrace();
-                                            }
+                                    // if (!variantLocationFoundHyper.isEmpty()) {
 
-                                        }
-                                    }
+                                    // processVariantsApparatus(reading, variantLocationFoundHyper, writer);
+
+                                    // }
+                                    // // If the reading has no variants, just write it out
+                                    // if (variantLocationFoundHyper.isEmpty()) {
+
+                                    // if (!reading.getText().equals("#START#")
+                                    // && !reading.getText().equals("#END#")) {
+
+                                    // try {
+                                    // writer.writeCharacters(reading.getText() + " ");
+                                    // } catch (XMLStreamException e) {
+                                    // e.printStackTrace();
+                                    // }
+
+                                    // }
+                                    // }
                                 }
                                 writer.writeEndElement(); // lemm
-                                
-                                //second hypernode
+
+                                // second hypernode
                                 writer.writeStartElement("rdg");
-                                writer.writeAttribute("wit", relStruct.hTarget.getId());
+                                // writer.writeAttribute("wit", relStruct.hTarget.getId());
 
-                                for (ReadingModel reading : relStruct.hTargetReadings) {
-                                    
-                                    // check for reading variants 
-                                    List<VariantLocationModel> variantLocationFoundHyper = vlm.getVariantlist().stream()
-                                            .filter(y -> y.getRankIndex().equals(reading.getRank()))
-                                            .collect(Collectors.toList());
+                                writer.writeEmptyElement("writehyperrdgcomponents");
+                                lrm = new ArrayList<>();
+                                lrm = relStruct.hTargetReadings.stream()
+                                        .sorted(java.util.Comparator.comparing(ReadingModel::getRank))
+                                        .collect(Collectors.toList());
+                                for (ReadingModel rm : lrm) {
+                                    writer.writeCharacters(rm.getText() + " ");
 
-                                    if (!variantLocationFoundHyper.isEmpty()) {
-                                            
-                                            processVariantsApparatus(reading, variantLocationFoundHyper, writer);
-    
-                                    }
-                                    // If the reading has no variants, just write it out
-                                    if (variantLocationFoundHyper.isEmpty()) {
+                                    // // check for reading variants
+                                    // List<VariantLocationModel> variantLocationFoundHyper =
+                                    // vlm.getVariantlist().stream()
+                                    // .filter(y -> y.getRankIndex().equals(reading.getRank()))
+                                    // .collect(Collectors.toList());
 
-                                        if (!reading.getText().equals("#START#")
-                                                && !reading.getText().equals("#END#")) {
+                                    // if (!variantLocationFoundHyper.isEmpty()) {
 
-                                            try {
-                                                writer.writeCharacters(reading.getText() + " ");
-                                            } catch (XMLStreamException e) {
-                                                e.printStackTrace();
-                                            }
+                                    // processVariantsApparatus(reading, variantLocationFoundHyper, writer);
 
-                                        }
-                                    }
+                                    // }
+                                    // // If the reading has no variants, just write it out
+                                    // if (variantLocationFoundHyper.isEmpty()) {
+
+                                    // if (!reading.getText().equals("#START#")
+                                    // && !reading.getText().equals("#END#")) {
+
+                                    // try {
+                                    // writer.writeCharacters(reading.getText() + " ");
+                                    // } catch (XMLStreamException e) {
+                                    // e.printStackTrace();
+                                    // }
+
+                                    // }
+                                    // }
                                 }
+                                // // If the reading has no variants, just write it out
+                                // if (variantLocationFoundHyper.isEmpty()) {
 
+                                // if (!reading.getText().equals("#START#")
+                                // && !reading.getText().equals("#END#")) {
+
+                                // try {
+                                // writer.writeCharacters(reading.getText() + " ");
+                                // } catch (XMLStreamException e) {
+                                // e.printStackTrace();
+                                // }
+
+                                // }
+                                // }
                                 
+
                                 writer.writeEndElement(); // rdg
                                 writer.writeEndElement(); // app
+
+                            } catch (XMLStreamException e) {
+                                e.printStackTrace();
                             }
+
                         }
 
-                        if ((relStruct.sourceNode.getId().equals(readingId)|| relStruct.targetNode.getId().equals(readingId))
-                            && (relStruct.hSource == null || relStruct.hTarget == null)) {
+                        if ((relStruct.sourceNode.getId().equals(readingId)
+                                || relStruct.targetNode.getId().equals(readingId))
+                                && (relStruct.hSource == null || relStruct.hTarget == null)) {
 
                             if (relStruct.relationModel.getAnnotation() != null
                                     && !relStruct.relationModel.getAnnotation().isEmpty()) {
 
                                 writer.writeStartElement("note");
-                                writer.writeAttribute("type", "manual relation");
+                                // writer.writeAttribute("type", "manual relation");
                                 // writer.writeAttribute("motivation", "assesing");
                                 // writer.writeAttribute("target", relStruct.relationModel.getId());
                                 writer.writeCharacters(relStruct.relationModel.getAnnotation());
@@ -1115,7 +1228,7 @@ public class TabularExporter {
                     // If the reading has variants,
                     // ans is not a standard manual relationship
                     // build up the critical apparatus.
-                    if (!variantLocationFound.isEmpty() && !defined_by_manual_relation && !defined_by_hyperrelation) {
+                    if (!variantLocationFound.isEmpty() && !defined_by_manual_relation) {
 
                         processVariantsApparatus(readingModel, variantLocationFound, writer);
 
@@ -1648,7 +1761,6 @@ public class TabularExporter {
             writer.writeAttribute("targetLength", Integer.toString(relStruct.hTargetReadings.size()));
             writer.writeAttribute("vlmLength", Integer.toString(vlm.getVariantlist().size()));
 
-
             for (ComplexReadingModel crm : relStruct.hSource.getComponents()) {
 
                 ReadingModel rm = crm.getReading();
@@ -1660,15 +1772,13 @@ public class TabularExporter {
             }
 
             for (ComplexReadingModel crm : relStruct.hTarget.getComponents()) {
-                    
-                    ReadingModel rm = crm.getReading();
-                    writer.writeEmptyElement("reading");
-                    writer.writeAttribute("xml:id", rm.getId());
-                    writer.writeAttribute("rank", Long.toString(rm.getRank()));
-                    writer.writeAttribute("text", rm.getText());    
+
+                ReadingModel rm = crm.getReading();
+                writer.writeEmptyElement("reading");
+                writer.writeAttribute("xml:id", rm.getId());
+                writer.writeAttribute("rank", Long.toString(rm.getRank()));
+                writer.writeAttribute("text", rm.getText());
             }
-
-
 
             // POLARISATION : Find wich of the hypernodes has been polarised so we can print
             // the lemma first and the variant second
@@ -1759,7 +1869,6 @@ public class TabularExporter {
             writer.writeEndElement(); // hyper-reading
 
             writer.writeEndElement(); // app of rel between two hyper-readings
-
 
         } catch (XMLStreamException e) {
             e.printStackTrace();
